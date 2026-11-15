@@ -1,0 +1,54 @@
+# Qisland .gitignore 模板
+# 用法：把本文件重命名为 .gitignore（本包内保留 .txt 后缀便于在 Windows 上传输）
+
+# ---- 构建产物 ----
+*.exe
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.res
+*.pdb
+*.ilk
+*.exp
+*.map
+
+# ---- 运行时生成的数据 ----
+# 便签 / 剪贴板历史 / 测试用剪贴板（明文，含敏感内容，绝不入库）
+note.txt
+clipboard.bin
+clipboard_test.bin
+
+# ---- 自测与诊断输出 ----
+diag.txt
+bench.txt
+wheel.txt
+gesture.txt
+cdtest.txt
+notetest.txt
+perftest.txt
+cliptest.txt
+notifytest.txt
+imtest.txt
+# --dump x 导出的逐像素快照
+*.bmp
+
+# ---- 预览图生成脚本（一次性工具，不属于源码） ----
+make_preview*.py
+__pycache__/
+*.pyc
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+Desktop.ini
+
+# ---- 注意：以下内容必须保留、不要忽略 ----
+# assets/fa-solid-900.ttf   运行时图标字体（私有加载，缺了图标会降级）
+# assets/LICENSE.txt / ATTRIBUTION.txt   Font Awesome 许可与署名
+# preview.png               交付效果图
+# src/stb_textedit.h        public domain 单头库（源码依赖）

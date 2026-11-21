@@ -43,7 +43,8 @@ enum {
     H_SET_OUTSIDE,    /* 收起模式：鼠标点击岛外收起 */
     H_SET_FIRST,      /* 收起模式：岛回到第一个卡片时收起 */
     H_SET_NEVER,      /* 收起模式：永不收起 */
-    H_SET_AUTOSTART   /* 开机自启动 */
+    H_SET_AUTOSTART,  /* 开机自启动 */
+    H_ABOUT_REPO      /* 关于页仓库链接：点击用系统默认浏览器打开 */
 };
 
 typedef struct { RECT rc; int id; } HitRect;

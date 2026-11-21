@@ -463,9 +463,10 @@ void ui_layout(App *a, double W, double H)
         add_hit(u, H_CLIP, b.clip);
         if (clip_count(&a->clip) > 0) add_hit(u, H_CLIP_CLEAR, b.clipClear);
     } else if (settings_view(a->ui.view)) {
-        /* 设置页：左栏两个页签 + 右栏四个单选收起模式 + 自启动。
-           「关于」页右栏不注册**点击**命中区（纯展示，点右栏不触发任何东西）；
-           滚轮滚动由 wheel_core 用 b.set.aboutBody 判定，无需命中区。
+        /* 设置页：左栏两个页签；「通用」右栏四个单选收起模式 + 自启动；
+           「关于」右栏只注册**仓库链接**这一处点击命中区（整行可点，
+           由 sys_open_repo() 打开浏览器）。文档区滚轮滚动由 wheel_core 用
+           b.set.aboutBody 判定，不需要额外命中区；其余位置点了不触发东西。
            几何直接取 settings_boxes() 的数组，绘制与命中严格同源。 */
         static const int setIds[SET_SW_N] = {
             H_SET_LEAVE, H_SET_OUTSIDE, H_SET_FIRST,
@@ -474,9 +475,12 @@ void ui_layout(App *a, double W, double H)
         int i;
         add_hit(u, H_SET_TAB_GEN,   s2d(b.set.tabGeneral));
         add_hit(u, H_SET_TAB_ABOUT, s2d(b.set.tabAbout));
-        if (settings_tab(&a->settings) == SET_TAB_GENERAL)
+        if (settings_tab(&a->settings) == SET_TAB_GENERAL) {
             for (i = 0; i < SET_SW_N; i++)
                 add_hit(u, setIds[i], s2d(b.set.rows[i]));
+        } else {
+            add_hit(u, H_ABOUT_REPO, s2d(b.set.aboutRepo));
+        }
     } else if (perf_view(a->ui.view) || empty_view(a->ui.view) ||
                date_view(a->ui.view)) {
         /* 日期时钟页 / 性能监测页 / 留空卡都是只读展示：不注册任何可点控件，
@@ -792,6 +796,11 @@ void ui_activate(App *a, int id, int x, int y)
         break;
     case H_TASKMGR:
         sys_open_taskmgr();
+        a->dirty = 1;
+        break;
+    case H_ABOUT_REPO:
+        /* 关于页仓库链接：交给系统默认浏览器，不在岛内嵌任何网页 */
+        sys_open_repo();
         a->dirty = 1;
         break;
     case H_PLAY:

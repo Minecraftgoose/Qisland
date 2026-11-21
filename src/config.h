@@ -354,8 +354,10 @@
 #define SET_ON_B          244
 
 /* ---- 关于页（设置页右栏，SET_TAB_ABOUT）----
-   0.2 轮按用户确认的 HTML 效果稿落地：图标 + 名称 + 仓库 + 四个胶囊板块。
-   内容比可视区高 → 可滚轮滚动，右缘一条淡圆条。所有比例相对 H0（设备像素）。 */
+   0.3 轮按用户要求：字号整体放大；四个板块由「两列并排」改为单列纵向，
+   每个胶囊独占一行；内容远超可视区 → 滚轮滚动，右缘一条淡圆条。
+   仓库地址整行可点（H_ABOUT_REPO → sys_open_repo → 系统默认浏览器）。
+   所有比例相对 H0（设备像素）。 */
 #define ABOUT_ICON_R        0.130           /* 程序图标边长 / 卡片高 */
 #define ABOUT_ICON_Y        0.075
 #define ABOUT_HEAD_GAP      0.024           /* 图标与文字之间的 / 卡片宽 */
@@ -363,25 +365,25 @@
 #define ABOUT_BODY_Y        0.235           /* 滚动区起点 */
 #define ABOUT_BODY_H        0.625           /* 滚动区高，止于 0.860H（避开 0.93H 横点） */
 #define ABOUT_SCROLL_GAP    0.028           /* 右缘留给滚动条（占卡片高） */
-#define ABOUT_COL_GAP       0.030           /* 两列之间的 / 卡片高 */
-#define ABOUT_BLOCK_GAP     0.026           /* 板块之间的 / 卡片高 */
+#define ABOUT_COL_GAP       0.030           /* 历史两列布局常量，现为单列，保留兼容 */
+#define ABOUT_BLOCK_GAP     0.036           /* 单列板块之间的 / 卡片高 */
 
-#define ABOUT_NAME_PX       0.062
-#define ABOUT_NAME_PX_MIN   22
-#define ABOUT_NAME_PX_MAX   34
-#define ABOUT_REPO_PX       0.028
-#define ABOUT_REPO_PX_MIN   11
-#define ABOUT_REPO_PX_MAX   16
-#define ABOUT_TITLE_PX      0.024           /* 四个板块小标题 */
-#define ABOUT_TITLE_PX_MIN  10
-#define ABOUT_TITLE_PX_MAX  14
-#define ABOUT_CHIP_PX       0.027           /* 胶囊内文字 */
-#define ABOUT_CHIP_PX_MIN   11
-#define ABOUT_CHIP_PX_MAX   16
+#define ABOUT_NAME_PX       0.072
+#define ABOUT_NAME_PX_MIN   26
+#define ABOUT_NAME_PX_MAX   40
+#define ABOUT_REPO_PX       0.034
+#define ABOUT_REPO_PX_MIN   14
+#define ABOUT_REPO_PX_MAX   20
+#define ABOUT_TITLE_PX      0.036           /* 四个板块小标题 */
+#define ABOUT_TITLE_PX_MIN  15
+#define ABOUT_TITLE_PX_MAX  22
+#define ABOUT_CHIP_PX       0.040           /* 胶囊内文字 */
+#define ABOUT_CHIP_PX_MIN   17
+#define ABOUT_CHIP_PX_MAX   24
 
 #define ABOUT_CHIP_BG       0.045           /* 胶囊淡底 / 描边的覆盖率 */
 #define ABOUT_CHIP_BORDER   0.075
-#define ABOUT_WHEEL_STEP    0.18            /* 每格滚轮走可视高的 18% */
+#define ABOUT_WHEEL_STEP    0.22            /* 每格滚轮走可视高的 22% */
 #define ABOUT_ICON_GAIN     2.20            /* 暗色程序图标在深底上的覆盖率放大 */
 #define ABOUT_ICON_TINT_R   0.86            /* 归一化色相压到冷灰白一档 */
 #define ABOUT_ICON_TINT_G   0.90
@@ -403,5 +405,8 @@
 #define ABOUT_REPO_R        127
 #define ABOUT_REPO_G        178
 #define ABOUT_REPO_B        217
+
+/* 仓库地址：about.c 绘制 / settings_boxes 命中框 / sys.c 打开浏览器三处唯一来源。 */
+#define QISLAND_REPO_URL    L"https://github.com/Minecraftgoose/Qisland/"
 
 #endif /* QISLAND_CONFIG_H */

@@ -26,5 +26,7 @@ int  sys_set_brightness(Sys *s, int pct, HWND hwnd);
 void sys_apply_volume(Sys *s, int force);
 void sys_apply_brightness(Sys *s, int force, HWND hwnd);
 void sys_open_taskmgr(void);
+/* 用 ShellExecuteW("open") 把 QISLAND_REPO_URL 交给系统默认浏览器 */
+void sys_open_repo(void);
 
 #endif /* QISLAND_SYS_H */

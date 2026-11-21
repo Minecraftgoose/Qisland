@@ -232,3 +232,9 @@ void sys_open_taskmgr(void)
 {
     ShellExecuteW(NULL, L"open", L"taskmgr.exe", NULL, NULL, SW_SHOWNORMAL);
 }
+void sys_open_repo(void)
+{
+    /* URL 走 "open" 动词，由 shell 关联的默认浏览器打开；成功返回 >32。
+       地址取自 config.h 的 QISLAND_REPO_URL，与 about.c 显示的文字同源。 */
+    ShellExecuteW(NULL, L"open", QISLAND_REPO_URL, NULL, NULL, SW_SHOWNORMAL);
+}

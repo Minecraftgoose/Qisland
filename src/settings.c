@@ -1,8 +1,8 @@
 /* settings.c — 设置页（唯一一张超大卡片）
  *
  * 左栏两个页签「通用」「关于」；右栏「通用」是**四选一必选**的收起条件
- * ＋「开机自启动」独立开关；「关于」右栏是软件图标 + 名称 + 仓库 +
- * 四个胶囊板块（about.c），内容可滚轮滚动。
+ * ＋「开机自启动」独立开关；「关于」右栏是软件图标 + 名称 + 可点击的仓库
+ * 链接 + 四个单列纵向胶囊板块（about.c），字号放大、内容可滚轮滚动。
  *
  * 实现约束：
  *   · 所有控件自绘进 alpha 画布（layered window 不合成 WS_CHILD 子控件）；
@@ -242,6 +242,21 @@ void settings_boxes(double W, double H, double L, SetBoxes *b)
        绘制（about.c）与滚轮判定（ui.c wheel_core）都用这一个盒子。 */
     b->aboutBody  = (SBox){ rx, H * ABOUT_BODY_Y,
                             rw - H * ABOUT_SCROLL_GAP, H * ABOUT_BODY_H };
+
+    /* 仓库链接：头部固定不滚，整行可点。命中框与 about.c 的文字绘制共用
+       b->aboutRepo / b->repoPx，字号按标称 H0 算，动画期间不重排。 */
+    {
+        double icon = H * ABOUT_ICON_R;
+        double iy   = H * ABOUT_ICON_Y;
+        double txL  = rx + icon + W * ABOUT_HEAD_GAP;
+        int rp = qs_iclamp((int)(H * ABOUT_REPO_PX),
+                           ABOUT_REPO_PX_MIN, ABOUT_REPO_PX_MAX);
+        double cyL = iy + icon * 0.78;
+        double wL  = (rx + rw) - txL - H * ABOUT_SCROLL_GAP * 0.5;
+        if (wL < H * 0.10) wL = H * 0.10;
+        b->aboutRepo = (SBox){ txL, cyL - rp * 0.75, wL, rp * 1.50 };
+        b->repoPx = rp;
+    }
 
     /* 四行收起条件（单选） */
     for (i = 0; i < SET_MODE_COUNT; i++)

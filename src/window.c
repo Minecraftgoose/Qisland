@@ -31,13 +31,29 @@ static App *app_of(HWND hwnd)
 
 /* 系统标准光标是共享句柄（LoadCursor 内部 LR_SHARED），加载一次即可，
    不需要 DestroyCursor。 */
-static HCURSOR curArrow = NULL, curIBeam = NULL;
+static HCURSOR curArrow = NULL, curIBeam = NULL, curHand = NULL;
+
+#ifndef IDC_HAND
+#define IDC_HAND 32649
+#endif
 
 HCURSOR window_cursor_handle(int ibeam)
 {
     if (!curArrow) curArrow = LoadCursorW(NULL, IDC_ARROW);
     if (!curIBeam) curIBeam = LoadCursorW(NULL, IDC_IBEAM);
     return ibeam ? curIBeam : curArrow;
+}
+
+/* 关于页仓库链接：命中时用系统手型光标，明确「这是可以点的链接」。 */
+static HCURSOR window_hand_cursor_handle(void)
+{
+    if (!curHand) curHand = LoadCursorW(NULL, MAKEINTRESOURCEW(IDC_HAND));
+    return curHand ? curHand : window_cursor_handle(0);
+}
+
+static int window_link_cursor(const App *a, int cx, int cy)
+{
+    return (a && a->visible && ui_hit(a, cx, cy) == H_ABOUT_REPO);
 }
 
 int window_text_cursor(const App *a, int cx, int cy)
@@ -96,12 +112,14 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
            否则 DefWindowProc 会用窗口类光标（箭头）把它覆盖回去。
            lParam 低字是 WM_NCHITTEST 的结果，只有客户区才由我们决定。 */
         POINT p;
-        int ibeam = 0;
+        int ibeam = 0, hand = 0;
         if (LOWORD(lp) != HTCLIENT) break;
         if (!GetCursorPos(&p)) break;
         ScreenToClient(hwnd, &p);
+        hand = window_link_cursor(a, p.x, p.y);
         ibeam = window_text_cursor(a, p.x, p.y);
-        SetCursor(window_cursor_handle(ibeam));
+        SetCursor(hand ? window_hand_cursor_handle()
+                       : window_cursor_handle(ibeam));
         return TRUE;
     }
     case WM_NCHITTEST: {

@@ -367,19 +367,47 @@ static void draw_update(App *a, double H, const SetBoxes *b, double k)
     font_draw_label(&a->fonts, c, L"当前版本", b->updTitlePx,
                     body->x, H * UPD_TITLE_Y, 0,
                     ABOUT_LABEL_R, ABOUT_LABEL_G, ABOUT_LABEL_B, k);
-    font_draw_label(&a->fonts, c, QI_VERSION_W, b->updVerPx,
+    font_draw_label(&a->fonts, c, QI_VERSION_UI_W, b->updVerPx,
                     body->x, H * UPD_VER_Y, 0,
                     INK_R, INK_G, INK_B, k);
 
-    /* 检查更新按钮：请求在途时压暗底色，连点由 update_check 自己挡掉 */
-    canvas_round(c, btn->x, btn->y, btn->w, btn->h, btn->h * 0.5,
-                 UPD_BTN_R, UPD_BTN_G, UPD_BTN_B,
-                 k * (update_busy() ? 0.45 : 0.85));
-    font_draw_label(&a->fonts, c,
-                    update_busy() ? L"检查中…" : L"检查更新",
-                    b->updBtnPx, btn->x + btn->w * 0.5,
-                    btn->y + btn->h * 0.5, 1,
-                    INK_R, INK_G, INK_B, k);
+    /* 按钮按状态显示检查 / 下载 / 退出并更新，下载时内部就是进度条 */
+    {
+        int st = update_state();
+        int pm = update_progress_permille();
+        DWORD by = update_progress_bytes();
+        const WCHAR *label;
+        WCHAR prog[64];
+        double fill = 0.0;
+
+        if (st == UPD_ST_DOWNLOADING) {
+            if (pm > 0) {
+                fill = (double)pm / 1000.0;
+                _snwprintf(prog, 64, L"下载中… %d%%", pm / 10);
+            } else {
+                _snwprintf(prog, 64, L"下载中… %.1f MB",
+                           (double)by / (1024.0 * 1024.0));
+            }
+            prog[63] = 0;
+            label = prog;
+        } else if (st == UPD_ST_CHECKING) label = L"检查中…";
+        else if (st == UPD_ST_READY)     label = L"下载更新";
+        else if (st == UPD_ST_DONE)      label = L"退出Qisland并更新";
+        else                              label = L"检查更新";
+
+        canvas_round(c, btn->x, btn->y, btn->w, btn->h, btn->h * 0.5,
+                     UPD_BTN_R, UPD_BTN_G, UPD_BTN_B,
+                     k * (st == UPD_ST_CHECKING ? 0.45 : 0.85));
+        if (fill > 0.0) {
+            double fw = btn->w * fill;
+            double rr = fw * 0.5 < btn->h * 0.5 ? fw * 0.5 : btn->h * 0.5;
+            canvas_round(c, btn->x, btn->y, fw, btn->h, rr,
+                         SET_ON_R, SET_ON_G, SET_ON_B, k * 0.95);
+        }
+        font_draw_label(&a->fonts, c, label, b->updBtnPx,
+                        btn->x + btn->w * 0.5, btn->y + btn->h * 0.5, 1,
+                        INK_R, INK_G, INK_B, k);
+    }
 
     docH  = update_doc(a, txt, body, b->updTextPx, 0.0, 0, k);
     viewH = body->h;
@@ -460,9 +488,9 @@ void settings_click(App *a, int id, int x, int y)
     Settings *s = &a->settings;
     (void)x; (void)y;
 
-    /* 检查更新按钮：只起工作线程 + 置脏，不改 tab、不写设置文件、不重排命中区 */
+    /* 更新页主按钮：按当前状态分派检查 / 下载 / 退出并更新 */
     if (id == H_SET_UPDATE_BTN) {
-        update_check(a->hwnd);
+        update_button_click(a->hwnd);
         a->dirty = 1;
         return;
     }

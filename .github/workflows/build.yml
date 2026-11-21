@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号，如 0.3.3；留空则用 tag，再退回 src/version.h'
+        description: '版本号，如 0.3.4；留空则用 tag，再退回 src/version.h'
         required: false
         default: ''
       tag:
@@ -112,7 +112,7 @@ jobs:
               return ver, f"{a}.{b}.{c}.0", f"{a},{b},{c},0", bool(re.search(r"[-+]", m.group(4)))
 
           cur = re.search(r'QI_VERSION_STR\s+"([^"]+)"', open(vh, encoding="utf-8").read())
-          current = cur.group(1) if cur else "0.3.3"
+          current = cur.group(1) if cur else "0.3.4"
           ref = os.environ.get("GITHUB_REF", "")
           tag = os.environ.get("INPUT_TAG", "").strip() or (
               ref[len("refs/tags/"):] if ref.startswith("refs/tags/") else "")

@@ -167,5 +167,7 @@ cleanup:
     font_shutdown(&a->fonts);
     sys_shutdown(&a->sys);
     canvas_shutdown(&a->canvas);
+    /* 窗口与托盘都已销毁，安装包才能通过自身的运行中检测 */
+    update_launch_pending();
     return 0;
 }

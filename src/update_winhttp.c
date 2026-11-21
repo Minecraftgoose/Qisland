@@ -132,6 +132,132 @@ done:
     return ok;
 }
 
+/* 下下来的必须是 PE，错误页不能当安装包运行 */
+static int wh_is_pe(const WCHAR *dst)
+{
+    HANDLE h = CreateFileW(dst, GENERIC_READ, FILE_SHARE_READ, NULL,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    LARGE_INTEGER sz;
+    unsigned char mz[2] = { 0 };
+    DWORD got = 0;
+    int ok;
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    sz.QuadPart = 0;
+    GetFileSizeEx(h, &sz);
+    ReadFile(h, mz, 2, &got, NULL);
+    CloseHandle(h);
+    ok = (sz.QuadPart >= 65536 && got == 2 && mz[0] == 'M' && mz[1] == 'Z');
+    return ok;
+}
+
+/* Win7 上 WinINet 握手失败时的流式下载兜底，进度同样回主线程 */
+int qi_winhttp_download(const WCHAR *url, const WCHAR *dst, DWORD *status,
+                        volatile LONG *abort, volatile PVOID *reqSlot,
+                        DWORD tmo, HWND hwnd)
+{
+    URL_COMPONENTSW uc;
+    WCHAR host[256] = L"", path[2048] = L"";
+    HINTERNET hS = NULL, hC = NULL, hR = NULL;
+    DWORD code = 0, sz, proto, rp, ct, rt, total = 0, done = 0;
+    HANDLE hf = INVALID_HANDLE_VALUE;
+    int ok = 0, secure;
+
+    if (status) *status = 0;
+    DeleteFileW(dst);
+    ZeroMemory(&uc, sizeof(uc));
+    uc.dwStructSize = sizeof(uc);
+    uc.lpszHostName = host; uc.dwHostNameLength = 256;
+    uc.lpszUrlPath  = path; uc.dwUrlPathLength  = 2048;
+    if (!WinHttpCrackUrl(url, 0, 0, &uc)) return 0;
+    secure = (uc.nScheme == INTERNET_SCHEME_HTTPS);
+
+    hS = WinHttpOpen(L"Qisland", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                     WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hS) goto done;
+    ct = tmo; rt = tmo;
+    WinHttpSetOption(hS, WINHTTP_OPTION_CONNECT_TIMEOUT, &ct, sizeof(ct));
+    WinHttpSetOption(hS, WINHTTP_OPTION_SEND_TIMEOUT, &rt, sizeof(rt));
+    WinHttpSetOption(hS, WINHTTP_OPTION_RECEIVE_TIMEOUT, &rt, sizeof(rt));
+    WinHttpSetOption(hS, WINHTTP_OPTION_RECEIVE_RESPONSE_TIMEOUT, &rt, sizeof(rt));
+
+    hC = WinHttpConnect(hS, host,
+                        uc.nPort ? uc.nPort
+                                 : (INTERNET_PORT)(secure ? INTERNET_DEFAULT_HTTPS_PORT
+                                                          : INTERNET_DEFAULT_HTTP_PORT),
+                        0);
+    if (!hC) goto done;
+    hR = WinHttpOpenRequest(hC, L"GET", path[0] ? path : L"/", NULL,
+                            WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                            secure ? WINHTTP_FLAG_SECURE : 0);
+    if (!hR) goto done;
+    if (reqSlot) InterlockedExchangePointer(reqSlot, hR);
+
+    if (secure) {
+        proto = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2
+              | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1
+              | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1
+              | WINHTTP_FLAG_SECURE_PROTOCOL_SSL3;
+        WinHttpSetOption(hR, WINHTTP_OPTION_SECURE_PROTOCOLS, &proto, sizeof(proto));
+    }
+    rp = WINHTTP_OPTION_REDIRECT_POLICY_ALWAYS;
+    WinHttpSetOption(hR, WINHTTP_OPTION_REDIRECT_POLICY, &rp, sizeof(rp));
+
+    if (!WinHttpSendRequest(hR, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+                            WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
+        !WinHttpReceiveResponse(hR, NULL)) goto done;
+    sz = sizeof(code);
+    WinHttpQueryHeaders(hR, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX, &code, &sz,
+                        WINHTTP_NO_HEADER_INDEX);
+    if (status) *status = code;
+    if (code >= 400) goto done;
+
+    sz = sizeof(total);
+    WinHttpQueryHeaders(hR, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX, &total, &sz,
+                        WINHTTP_NO_HEADER_INDEX);
+    hf = CreateFileW(dst, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+                     FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hf == INVALID_HANDLE_VALUE) goto done;
+
+    for (;;) {
+        DWORD avail = 0, got = 0, wr = 0;
+        char *b;
+        if (abort && WH_READ(abort)) goto done;
+        if (!WinHttpQueryDataAvailable(hR, &avail)) goto done;
+        if (avail == 0) break;
+        if (avail > 4 * 1024 * 1024) avail = 4 * 1024 * 1024;
+        b = (char *)malloc(avail ? avail : 1);
+        if (!b) goto done;
+        if (!WinHttpReadData(hR, b, avail, &got)) { free(b); goto done; }
+        wr = 0;
+        if (got && !WriteFile(hf, b, got, &wr, NULL)) { free(b); goto done; }
+        free(b);
+        if (got == 0) break;
+        done += got;
+        if (done > UPD_DL_MAX_SETUP) goto done;
+        PostMessageW(hwnd, WM_APP_UPDATE_PROGRESS,
+                     total ? (WPARAM)(DWORD)(((DWORDLONG)done * 1000) / total) : 0,
+                     (LPARAM)done);
+    }
+    CloseHandle(hf);
+    hf = INVALID_HANDLE_VALUE;
+    ok = (done >= 65536 && wh_is_pe(dst));
+
+done:
+    if (hf != INVALID_HANDLE_VALUE) CloseHandle(hf);
+    if (reqSlot) {
+        HINTERNET mine = (HINTERNET)InterlockedExchangePointer(reqSlot, NULL);
+        if (mine) WinHttpCloseHandle(mine);
+        hR = NULL;
+    }
+    if (hR) WinHttpCloseHandle(hR);
+    if (hC) WinHttpCloseHandle(hC);
+    if (hS) WinHttpCloseHandle(hS);
+    if (!ok) DeleteFileW(dst);
+    return ok;
+}
+
 void qi_winhttp_abort(volatile PVOID *reqSlot)
 {
     if (!reqSlot) return;

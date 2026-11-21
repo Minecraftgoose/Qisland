@@ -351,6 +351,8 @@
 /* GitHub Releases API 用的 owner / repo，与上面那条地址同源，别两处各写一份。 */
 #define QI_REPO_OWNER       "Minecraftgoose"
 #define QI_REPO_NAME        "Qisland"
+/* 安装包下载加速前缀，后面直接接完整 GitHub 直链。 */
+#define QI_GHPROXY_PREFIX   "https://v4.gh-proxy.org/"
 
 #define UPD_TITLE_Y         0.170       /* 「当前版本」小标题 */
 #define UPD_VER_Y           0.250       /* 版本号 */

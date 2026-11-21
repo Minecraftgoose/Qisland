@@ -8,8 +8,8 @@
 !define MUI_UNICON  "..\src\qisland.ico"
 
 !define APPNAME      "Qisland"
-!define APPVERSION   "0.3.3"     ; 与 src/version.h 的 QI_VERSION_STR 一致
-!define APPVERSION4  "0.3.3.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
+!define APPVERSION   "0.3.4"     ; 与 src/version.h 的 QI_VERSION_STR 一致
+!define APPVERSION4  "0.3.4.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
 !define UNINSTKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Qisland"
 !define RUNKEY       "Software\Microsoft\Windows\CurrentVersion\Run"
 !define WNDCLASS     "QislandLayeredClass"
@@ -18,14 +18,14 @@
 ; 升级前先记下旧的开机自启动值：旧卸载器会 DeleteRegValue 把它删掉， 全新安装完成后再按这个记录恢复。 必须是 /GLOBAL，跨 .onInit 与 Section 共享。
 Var /GLOBAL OldRunValue
 
-Name "${APPNAME} ${APPVERSION}"
+Name "${APPNAME} v${APPVERSION}"
 OutFile "..\..\软件\Qisland-${APPVERSION}-Setup.exe"
 InstallDir "$LOCALAPPDATA\Qisland"
 InstallDirRegKey HKCU "${UNINSTKEY}" "InstallLocation"
 RequestExecutionLevel user          ; 全程 HKCU，Win7 不弹 UAC
 SetCompressor /SOLID lzma
 Unicode true
-BrandingText "${APPNAME} ${APPVERSION}"
+BrandingText "${APPNAME} v${APPVERSION}"
 ShowInstDetails show
 ShowUninstDetails show
 

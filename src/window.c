@@ -171,6 +171,9 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         /* 工作线程 / 看门狗 → 主线程：写结果区 + 弹 Qisland 即时通知。 窗口过程绝不碰网络，也不在这里分配大块内存。 */
         update_on_message(a, wp, lp);
         return 0;
+    case WM_APP_UPDATE_PROGRESS:
+        update_on_progress(a, wp, lp);
+        return 0;
     case WM_DPICHANGED:
         /* 低字 = 新 DPI X； lParam = 系统建议的新窗口矩形。 */
         window_apply_dpi(a, hwnd, LOWORD(wp), (const RECT *)lp);

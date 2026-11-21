@@ -38,7 +38,9 @@ enum {
     H_NOTIFY_CLOSE,   /* 通知右上角 xmark：关闭 */
     H_HDOTS,          /* 底部横向圆点：滚轮组内横切 / 点击圆点跳卡 */
     H_SET_TAB_GEN,    /* 设置页左栏「通用」 */
+    H_SET_TAB_UPDATE, /* 设置页左栏「更新」 */
     H_SET_TAB_ABOUT,  /* 设置页左栏「关于」 */
+    H_SET_UPDATE_BTN, /* 更新页「检查更新」按钮 */
     H_SET_LEAVE,      /* 收起模式：鼠标离开岛收起 */
     H_SET_OUTSIDE,    /* 收起模式：鼠标点击岛外收起 */
     H_SET_FIRST,      /* 收起模式：岛回到第一个卡片时收起 */

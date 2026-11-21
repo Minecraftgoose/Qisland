@@ -5,7 +5,7 @@
  * 资源管理器 / Alt+Tab / 窗口类图标 / 系统托盘图标都用它。
  * ID 与 config.h 的 IDI_QISLAND 一致。
  *
- * 版本号唯一来源：version.h（QI_VERSION_STR / QI_VERSION_NUM = 0.3.1）。
+ * 版本号唯一来源：version.h（QI_VERSION_STR / QI_VERSION_NUM = 0.3.2）。
  * VS_VERSION_INFO 让「文件属性 → 详细信息」和安装包的版本信息一致。
  *
  * 0.3.1 起内嵌 qisland.manifest（资源类型 24 = RT_MANIFEST，ID 1 =
@@ -34,7 +34,7 @@ BEGIN
             VALUE "FileDescription",   "Qisland Dynamic Island"
             VALUE "FileVersion",       QI_VERSION_STR
             VALUE "InternalName",      "Qisland"
-            VALUE "LegalCopyright",    "See LICENSE files in assets"
+            VALUE "LegalCopyright",    "See LICENSE and LICENSES"
             VALUE "OriginalFilename",  "Qisland.exe"
             VALUE "ProductName",       "Qisland"
             VALUE "ProductVersion",    QI_VERSION_STR

@@ -39,6 +39,7 @@
 #include "about.h"
 #include "capsuleicon.h"
 #include "input.h"
+#include "update.h"
 
 typedef struct { double x, y, w, h; } DBox;
 
@@ -463,21 +464,24 @@ void ui_layout(App *a, double W, double H)
         add_hit(u, H_CLIP, b.clip);
         if (clip_count(&a->clip) > 0) add_hit(u, H_CLIP_CLEAR, b.clipClear);
     } else if (settings_view(a->ui.view)) {
-        /* 设置页：左栏两个页签；「通用」右栏四个单选收起模式 + 自启动；
-           「关于」右栏只注册**仓库链接**这一处点击命中区（整行可点，
-           由 sys_open_repo() 打开浏览器）。文档区滚轮滚动由 wheel_core 用
-           b.set.aboutBody 判定，不需要额外命中区；其余位置点了不触发东西。
+        /* 设置页：左栏三个页签「通用 / 更新 / 关于」；「通用」右栏四个单选
+           收起模式 + 自启动；「更新」右栏注册检查更新按钮，结果区滚轮滚动由
+           wheel_core 用 b.set.updateBody 判定；「关于」右栏只注册仓库链接。
            几何直接取 settings_boxes() 的数组，绘制与命中严格同源。 */
         static const int setIds[SET_SW_N] = {
             H_SET_LEAVE, H_SET_OUTSIDE, H_SET_FIRST,
             H_SET_NEVER, H_SET_AUTOSTART
         };
         int i;
-        add_hit(u, H_SET_TAB_GEN,   s2d(b.set.tabGeneral));
-        add_hit(u, H_SET_TAB_ABOUT, s2d(b.set.tabAbout));
-        if (settings_tab(&a->settings) == SET_TAB_GENERAL) {
+        int tab = settings_tab(&a->settings);
+        add_hit(u, H_SET_TAB_GEN,    s2d(b.set.tabGeneral));
+        add_hit(u, H_SET_TAB_UPDATE, s2d(b.set.tabUpdate));
+        add_hit(u, H_SET_TAB_ABOUT,  s2d(b.set.tabAbout));
+        if (tab == SET_TAB_GENERAL) {
             for (i = 0; i < SET_SW_N; i++)
                 add_hit(u, setIds[i], s2d(b.set.rows[i]));
+        } else if (tab == SET_TAB_UPDATE) {
+            add_hit(u, H_SET_UPDATE_BTN, s2d(b.set.updateBtn));
         } else {
             add_hit(u, H_ABOUT_REPO, s2d(b.set.aboutRepo));
         }
@@ -785,7 +789,8 @@ void ui_activate(App *a, int id, int x, int y)
     case H_NOTIFY_CLOSE:
         notify_dismiss(&a->notify, a);       /* 点一下即关闭，回到原视图 */
         break;
-    case H_SET_TAB_GEN: case H_SET_TAB_ABOUT:
+    case H_SET_TAB_GEN: case H_SET_TAB_UPDATE: case H_SET_TAB_ABOUT:
+    case H_SET_UPDATE_BTN:
     case H_SET_LEAVE: case H_SET_OUTSIDE:
     case H_SET_FIRST: case H_SET_NEVER: case H_SET_AUTOSTART:
         settings_click(a, id, x, y);
@@ -1021,26 +1026,33 @@ static void wheel_core(App *a, int delta, int horiz)
         return;
     }
 
-    /* ①b3 关于页：内容比可视区高，右栏内容框内滚轮滚文档（不切卡片）。
-       与 about_draw() 用同一个 settings_boxes() 的 aboutBody，
-       所以裁剪范围、docH clamp、滚动条位置三者不会错位。
+    /* ①b3 关于页 / 更新页：内容比可视区高，右栏内容框内滚轮滚文档
+       （不切卡片）。与绘制共用 settings_boxes() 的 aboutBody / updateBody，
+       裁剪范围、docH clamp、滚动条位置三者不会错位。
        横向阶段底部横点热区已在 ①a 优先处理，滚到那里仍是切卡。 */
     if (settings_view(a->ui.view) &&
-        settings_tab(&a->settings) == SET_TAB_ABOUT) {
+        (settings_tab(&a->settings) == SET_TAB_ABOUT ||
+         settings_tab(&a->settings) == SET_TAB_UPDATE)) {
         Boxes ab;
-        double w, h, r;
+        double w, h, r, bx, by, bw, bh;
+        int isUpd = (settings_tab(&a->settings) == SET_TAB_UPDATE);
         anim_geometry(&a->anim, &w, &h, &r);
         compute(a, w * a->u, h * a->u, &ab);
-        if (c.x >= ab.set.aboutBody.x &&
-            c.x <  ab.set.aboutBody.x + ab.set.aboutBody.w &&
-            c.y >= ab.set.aboutBody.y &&
-            c.y <  ab.set.aboutBody.y + ab.set.aboutBody.h) {
+        if (isUpd) {
+            bx = ab.set.updateBody.x; by = ab.set.updateBody.y;
+            bw = ab.set.updateBody.w; bh = ab.set.updateBody.h;
+        } else {
+            bx = ab.set.aboutBody.x; by = ab.set.aboutBody.y;
+            bw = ab.set.aboutBody.w; bh = ab.set.aboutBody.h;
+        }
+        if (c.x >= bx && c.x < bx + bw && c.y >= by && c.y < by + bh) {
             a->wheelAccum += delta;
             while (a->wheelAccum >= WHEEL_DELTA ||
                    a->wheelAccum <= -WHEEL_DELTA) {
                 int st = a->wheelAccum > 0 ? 1 : -1;
                 a->wheelAccum -= st * WHEEL_DELTA;
-                about_wheel(a, ab.set.aboutBody.h, -st);
+                if (isUpd) update_result_wheel(-st, bh);
+                else       about_wheel(a, bh, -st);
                 a->dirty = 1;
             }
         } else {

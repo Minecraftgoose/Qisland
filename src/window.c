@@ -22,6 +22,7 @@
 #include "notify.h"
 #include "balloon.h"
 #include "tray.h"
+#include "update.h"
 
 #ifndef WM_CLIPBOARDUPDATE
 #define WM_CLIPBOARDUPDATE 0x031D
@@ -196,6 +197,11 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 
     switch (msg) {
+    case WM_APP_UPDATE:
+        /* 工作线程 / 看门狗 → 主线程：写结果区 + 弹 Qisland 即时通知。
+           窗口过程绝不碰网络，也不在这里分配大块内存。 */
+        update_on_message(a, wp, lp);
+        return 0;
     case WM_DPICHANGED:
         /* 低字 = 新 DPI X；lParam = 系统建议的新窗口矩形。
            自己重建资源并 SetWindowPos，返回 0 告诉系统不用再插手。 */

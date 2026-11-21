@@ -1,8 +1,9 @@
 /* settings.c — 设置页（唯一一张超大卡片）
  *
- * 左栏两个页签「通用」「关于」；右栏「通用」是**四选一必选**的收起条件
- * ＋「开机自启动」独立开关；「关于」右栏是软件图标 + 名称 + 可点击的仓库
- * 链接 + 四个单列纵向胶囊板块（about.c），字号放大、内容可滚轮滚动。
+ * 左栏三个页签「通用」「更新」「关于」；右栏「通用」是**四选一必选**的收起
+ * 条件 ＋「开机自启动」独立开关；「更新」右栏显示当前版本 + 检查更新按钮 +
+ * 可滚轮滚动的结果区（出错时直接贴服务器返回的原始响应）；「关于」右栏是
+ * 软件图标 + 名称 + 可点击的仓库链接 + 四个单列纵向胶囊板块（about.c）。
  *
  * 实现约束：
  *   · 所有控件自绘进 alpha 画布（layered window 不合成 WS_CHILD 子控件）；
@@ -19,6 +20,8 @@
 #include "ui.h"
 #include "anim.h"
 #include "about.h"
+#include "update.h"
+#include "version.h"
 
 /* ---------------- 路径与持久化 ---------------- */
 #define SET_MAGIC   0x51455354u   /* 'QSET' */
@@ -69,7 +72,9 @@ static void settings_load(Settings *s)
     if (!ReadFile(h, &b,     4, &got, NULL) || got != 4) goto done;
     if (magic != SET_MAGIC) goto done;
 
-    s->tab = (a == SET_TAB_ABOUT) ? SET_TAB_ABOUT : SET_TAB_GENERAL;
+    s->tab = (a == SET_TAB_ABOUT) ? SET_TAB_ABOUT
+           : (a == SET_TAB_UPDATE) ? SET_TAB_UPDATE
+           : SET_TAB_GENERAL;
     if (ver == 1) {
         s->collapseMode = mask_to_mode(b);
     } else if (ver == SET_VERSION) {
@@ -230,7 +235,9 @@ void settings_boxes(double W, double H, double L, SetBoxes *b)
 
     b->tabGeneral = (SBox){ lx, H * SET_TAB_Y0,
                             SET_LEFT_W * W, H * SET_TAB_H };
-    b->tabAbout   = (SBox){ lx, H * (SET_TAB_Y0 + SET_TAB_DY),
+    b->tabUpdate  = (SBox){ lx, H * (SET_TAB_Y0 + SET_TAB_DY),
+                            SET_LEFT_W * W, H * SET_TAB_H };
+    b->tabAbout   = (SBox){ lx, H * (SET_TAB_Y0 + 2.0 * SET_TAB_DY),
                             SET_LEFT_W * W, H * SET_TAB_H };
     b->dividerX   = L + SET_DIV_X * W;
     b->dividerY0  = H * SET_DIV_Y0;
@@ -269,9 +276,19 @@ void settings_boxes(double W, double H, double L, SetBoxes *b)
     row_boxes(W, H, rx, rw, H * SET_AUTO_Y, H * SET_ROW_H,
               &b->rows[SET_SW_AUTO], &b->sws[SET_SW_AUTO]);
 
+    /* 更新页：按钮与结果区同用右栏坐标，绘制 / 命中 / 滚轮判定同源 */
+    b->updateBtn  = (SBox){ rx + rw * 0.02, H * UPD_BTN_Y,
+                            rw * UPD_BTN_W_RATIO, H * UPD_BTN_H };
+    b->updateBody = (SBox){ rx, H * UPD_BODY_Y,
+                            rw - H * UPD_SCROLL_GAP, H * UPD_BODY_H };
+
     b->tabPx   = qs_iclamp((int)(H * SET_TAB_PX_RATIO),   SET_TAB_PX_MIN,   SET_TAB_PX_MAX);
     b->groupPx = qs_iclamp((int)(H * SET_GROUP_PX_RATIO), SET_GROUP_PX_MIN, SET_GROUP_PX_MAX);
     b->rowPx   = qs_iclamp((int)(H * SET_ROW_PX_RATIO),   SET_ROW_PX_MIN,   SET_ROW_PX_MAX);
+    b->updTitlePx = qs_iclamp((int)(H * UPD_TITLE_PX_RATIO), UPD_TITLE_PX_MIN, UPD_TITLE_PX_MAX);
+    b->updVerPx   = qs_iclamp((int)(H * UPD_VER_PX_RATIO),   UPD_VER_PX_MIN,   UPD_VER_PX_MAX);
+    b->updBtnPx   = qs_iclamp((int)(H * UPD_BTN_PX_RATIO),   UPD_BTN_PX_MIN,   UPD_BTN_PX_MAX);
+    b->updTextPx  = qs_iclamp((int)(H * UPD_TEXT_PX_RATIO),  UPD_TEXT_PX_MIN,  UPD_TEXT_PX_MAX);
 }
 
 /* ---------------- 绘制 ----------------
@@ -327,6 +344,92 @@ static void draw_tab(App *a, const SetBoxes *b, const WCHAR *label,
                     on ? INK_B : DIM_B, k * (on ? 1.0 : 0.78));
 }
 
+/* ---------------- 更新页右栏：当前版本 + 按钮 + 可滚动结果 ----------------
+   结果区按 \n 与可用宽度软换行；两遍（先量高后绘制）同源，滚动条不会错位。
+   出错时这里就是服务器返回的原始字节，跟通知正文出自同一份文本。 */
+static double update_doc(App *a, const WCHAR *txt, const SBox *body,
+                         int px, double scroll, int draw, double k)
+{
+    const WCHAR *p = txt;
+    double lineH = px * UPD_LINE_GAP;
+    double y = body->y - scroll;
+    int maxChars = (int)(body->w / (px * 0.62));
+    int lines = 0;
+    WCHAR line[1024];
+
+    if (maxChars < 8) maxChars = 8;
+    if (maxChars > 1000) maxChars = 1000;
+    if (!txt || !txt[0]) return lineH;
+
+    while (*p) {
+        int n = 0;
+        while (p[n] && p[n] != L'\n' && n < maxChars) n++;
+        if (n > 0) {
+            if (draw) {
+                int i;
+                for (i = 0; i < n; i++) line[i] = p[i];
+                line[n] = 0;
+                font_draw_label(&a->fonts, &a->canvas, line, px,
+                                body->x, y + lineH * 0.5, 0,
+                                INK_R, INK_G, INK_B, k);
+            }
+            y += lineH;
+            lines++;
+            p += n;
+        }
+        if (*p == L'\n') p++;
+    }
+    return (double)lines * lineH;
+}
+
+static void draw_update(App *a, double H, const SetBoxes *b, double k)
+{
+    Canvas *c = &a->canvas;
+    const SBox *btn = &b->updateBtn;
+    const SBox *body = &b->updateBody;
+    const WCHAR *txt = update_result_text();
+    double docH, viewH, maxS, thumbH, thumbY, scroll;
+
+    if (!txt[0]) txt = L"点击「检查更新」查询最新版本。";
+
+    font_draw_label(&a->fonts, c, L"当前版本", b->updTitlePx,
+                    body->x, H * UPD_TITLE_Y, 0,
+                    ABOUT_LABEL_R, ABOUT_LABEL_G, ABOUT_LABEL_B, k);
+    font_draw_label(&a->fonts, c, QI_VERSION_W, b->updVerPx,
+                    body->x, H * UPD_VER_Y, 0,
+                    INK_R, INK_G, INK_B, k);
+
+    /* 检查更新按钮：请求在途时压暗底色，连点由 update_check 自己挡掉 */
+    canvas_round(c, btn->x, btn->y, btn->w, btn->h, btn->h * 0.5,
+                 UPD_BTN_R, UPD_BTN_G, UPD_BTN_B,
+                 k * (update_busy() ? 0.45 : 0.85));
+    font_draw_label(&a->fonts, c,
+                    update_busy() ? L"检查中…" : L"检查更新",
+                    b->updBtnPx, btn->x + btn->w * 0.5,
+                    btn->y + btn->h * 0.5, 1,
+                    INK_R, INK_G, INK_B, k);
+
+    docH  = update_doc(a, txt, body, b->updTextPx, 0.0, 0, k);
+    viewH = body->h;
+    update_result_set_doch(docH, viewH);
+    scroll = update_result_scroll();
+    maxS = docH - viewH;
+    if (maxS < 0.0) maxS = 0.0;
+
+    canvas_set_clip(c, (int)body->x, (int)body->y,
+                    (int)(body->x + body->w), (int)(body->y + body->h));
+    update_doc(a, txt, body, b->updTextPx, scroll, 1, k);
+    canvas_reset_clip(c);
+
+    if (maxS > 0.5) {
+        thumbH = qs_clamp(viewH * viewH / docH, 24.0, viewH);
+        thumbY = body->y + (viewH - thumbH) * (scroll / maxS);
+        canvas_round(c, body->x + body->w + H * UPD_SCROLL_GAP * 0.35,
+                     thumbY, 3.0, thumbH, 1.5,
+                     DIM_R, DIM_G, DIM_B, k * 0.55);
+    }
+}
+
 void settings_draw(App *a, double W, double H, double L,
                    const SetBoxes *b, double k)
 {
@@ -340,13 +443,19 @@ void settings_draw(App *a, double W, double H, double L,
 
     draw_tab(a, b, L"通用", &b->tabGeneral,
              s->tab == SET_TAB_GENERAL, k);
+    draw_tab(a, b, L"更新", &b->tabUpdate,
+             s->tab == SET_TAB_UPDATE, k);
     draw_tab(a, b, L"关于", &b->tabAbout,
              s->tab == SET_TAB_ABOUT, k);
 
-    /* 「关于」页：图标 + 名称 + 仓库 + 四个胶囊板块，内容可滚轮滚动。
-       文案是封闭清单第 15 条，通用页那些开关一个都不画。 */
+    /* 「关于」页：图标 + 名称 + 仓库 + 四个胶囊板块，内容可滚轮滚动。 */
     if (s->tab == SET_TAB_ABOUT) {
         about_draw(a, W, H, L, b, k);
+        return;
+    }
+    /* 「更新」页：当前版本 + 检查更新按钮 + 结果区，通用页的开关一个都不画。 */
+    if (s->tab == SET_TAB_UPDATE) {
+        draw_update(a, H, b, k);
         return;
     }
 
@@ -379,13 +488,23 @@ void settings_click(App *a, int id, int x, int y)
     Settings *s = &a->settings;
     (void)x; (void)y;
 
-    /* 切页签时关于页回到顶部，避免从通用切回来还停在半截 */
-    if (id == H_SET_TAB_GEN || id == H_SET_TAB_ABOUT)
+    /* 检查更新按钮：只起工作线程 + 置脏，不改 tab、不写设置文件、不重排命中区 */
+    if (id == H_SET_UPDATE_BTN) {
+        update_check(a->hwnd);
+        a->dirty = 1;
+        return;
+    }
+
+    /* 切页签时两处滚动都回到顶部，避免切回来还停在半截 */
+    if (id == H_SET_TAB_GEN || id == H_SET_TAB_UPDATE || id == H_SET_TAB_ABOUT) {
         s->aboutScroll = 0.0;
+        update_result_reset_scroll();
+    }
 
     switch (id) {
-    case H_SET_TAB_GEN:   s->tab = SET_TAB_GENERAL; break;
-    case H_SET_TAB_ABOUT: s->tab = SET_TAB_ABOUT;   break;
+    case H_SET_TAB_GEN:    s->tab = SET_TAB_GENERAL; break;
+    case H_SET_TAB_UPDATE: s->tab = SET_TAB_UPDATE;  break;
+    case H_SET_TAB_ABOUT:  s->tab = SET_TAB_ABOUT;   break;
     /* 单选必选：点任一项直接设为当前模式；再点已选中项也不清空，
        所以四个里永远恰好一个 ON，不存在「全不选」。 */
     case H_SET_LEAVE:     s->collapseMode = SET_MODE_LEAVE;   break;

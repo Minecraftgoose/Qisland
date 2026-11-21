@@ -32,6 +32,7 @@
 #include "tray.h"
 #include "input.h"
 #include "ui.h"
+#include "update.h"
 
 DWORD qs_now(void) { return GetTickCount(); }
 double qs_clamp(double v, double a, double b) { return v < a ? a : (v > b ? b : v); }
@@ -178,6 +179,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     }
 
 cleanup:
+    update_shutdown();          /* 先让检查更新的线程收手，别再往将销毁的窗口发消息 */
     input_shutdown(a);          /* 编辑中会先保存便签 */
     note_shutdown(&a->note);
     clip_shutdown(&a->clip, a);

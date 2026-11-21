@@ -1,4 +1,4 @@
-/* settings.h — 最后的超大卡片：设置页（左右栏，左栏「通用」「关于」）
+/* settings.h — 最后的超大卡片：设置页（左右栏，左栏「通用」「更新」「关于」）
  *
  * 文字政策：本页字符串是封闭清单第 13 条（AGENTS.md 第 4 节第 8 条），
  * **不是解除文字政策**。逐字点名清单：
@@ -29,6 +29,7 @@
 
 #define SET_TAB_GENERAL  0
 #define SET_TAB_ABOUT    1
+#define SET_TAB_UPDATE   2   /* 夹在「通用」与「关于」中间；值保持 2，旧设置文件里没有它 */
 
 /* 收起模式：单选，0..SET_MODE_COUNT-1，必选其一 */
 #define SET_MODE_LEAVE    0
@@ -46,20 +47,23 @@ typedef struct { double x, y, w, h; } SBox;
 /* 全部几何用**目标态标称尺寸** W0/H0/L0 算（AGENTS.md 第 4 节第 10 条），
    绘制与命中区共用这一份，动画期间不重排、不重算字号。 */
 typedef struct {
-    SBox    tabGeneral, tabAbout;                  /* 左栏两个页签命中区 */
+    SBox    tabGeneral, tabUpdate, tabAbout;      /* 左栏三个页签命中区 */
     SBox    rows[SET_SW_N];                       /* 右栏五行（整行可点） */
     SBox    sws[SET_SW_N];                        /* 五个开关的绘制矩形 */
     SBox    groupBox;                             /* 「收起岛设置」组标题 */
     SBox    aboutBody;                            /* 关于页滚动内容框（绘制/滚轮同源） */
     SBox    aboutRepo;                            /* 关于页仓库链接：整行可点（绘制/命中同源） */
+    SBox    updateBtn;                            /* 更新页「检查更新」按钮 */
+    SBox    updateBody;                           /* 更新页结果区（绘制/滚轮同源） */
     double  dividerX, dividerY0, dividerY1;      /* 左右栏竖分隔线 */
     double  fineLineY;                           /* 两组之间的极淡横线 */
     double  fineX0, fineX1;
-    int     tabPx, groupPx, rowPx, repoPx;       /* repoPx 也供 about.c 直接取，避免两处算不一样 */
+    int     tabPx, groupPx, rowPx, repoPx;       /* repoPx 也供 about.c 直接取 */
+    int     updTitlePx, updVerPx, updBtnPx, updTextPx;
 } SetBoxes;
 
 typedef struct {
-    int      tab;              /* SET_TAB_GENERAL / SET_TAB_ABOUT */
+    int      tab;              /* SET_TAB_GENERAL / SET_TAB_UPDATE / SET_TAB_ABOUT */
     int      collapseMode;     /* SET_MODE_*，单选必选 */
     int      autostart;        /* 注册表真值 */
     int      autostartOK;      /* 最近一次注册表读写是否成功（诊断用，不落盘） */

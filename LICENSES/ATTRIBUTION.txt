@@ -3,8 +3,10 @@ Qisland — third-party attribution / 第三方署名与许可
 
 本目录（LICENSES/）是仓库里所有第三方许可全文的集中存放处。
 CI 在组装 NSIS 打包目录时会把本目录全部文件复制进
-「软件/Qisland/assets/」，因此安装包里同样带有全部许可全文
-（OPPO Sans 许可要求任何副本都保留版权声明与协议全文）。
+「软件/Qisland/LICENSES/」，由 NSIS 释放到安装目录的 LICENSES\，
+因此安装包里同样带有全部许可全文（OPPO Sans 许可要求任何副本
+都保留版权声明与协议全文）。安装包的 assets\ 只放程序运行时读取的
+两个字体与通知音效，不混入许可文本或图标原图。
 
 索引：
   Apache-2.0.txt                    Apache License 2.0 全文

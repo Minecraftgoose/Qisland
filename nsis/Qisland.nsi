@@ -4,7 +4,7 @@
 ; 编译：makensis Qisland.nsi
 ;       makensis 默认把当前工作目录切到脚本所在目录（除非 /NOCD），
 ;       所以下面所有相对路径都以本文件所在目录为基准。
-; 产出：软件/Qisland-0.3.1-Setup.exe
+; 产出：软件/Qisland-0.3.2-Setup.exe
 ;
 ; 设计要点（用户要求：不做独立升级包，升级逻辑写进同一个安装包）：
 ;   .onInit 里检测旧版 → 比较版本 → 静默卸载旧版 → 清理旧卸载器与注册表
@@ -33,11 +33,14 @@
 ; 只对 **NSIS 安装过的旧版** 做状态迁移；历史 zip 解压版没有卸载注册表项，
 ; 视为全新安装，旧解压目录不会被改动（需用户自行删除）。
 ;
-; 0.3.1 沿用同一套升级分支（0.1/0.2/0.3 装过 → 0.3.1 安装）。
-; 0.3.1 的 assets\notice.wav（通知音效，PCM WAV）与 LICENSES/ 下全部
-; 第三方许可全文，都由下面的 File /r "${SRCDIR}\assets" 一并释放；
-; CI 组装打包目录时会先把 LICENSES/ 复制进 assets/，保证 OPPO Sans
-; 「任何副本保留协议全文」的要求成立；卸载时随 assets\*.* 一起删除。
+; 0.3.2 沿用同一套升级分支（0.1/0.2/0.3/0.3.1 装过 → 0.3.2 安装）。
+; 安装包只释放程序真正会读的文件：
+;   Qisland.exe / LICENSE（项目自身 Apache-2.0）
+;   assets\fa-solid-900.ttf、assets\OPPO Sans 4.0.ttf、assets\notice.wav
+;   LICENSES\ 下六份第三方许可全文（分发合规要求，与仓库 LICENSES/ 对应）
+; 不再释放 preview.png、README.md，也不把图标 png/ico 或许可文本塞进
+; assets\ —— 程序图标、托盘图标、胶囊图标都编在 exe 资源里或自绘，
+; 不读外部图片文件。CI 组装时按同样清单挑文件，见 .github/workflows/build.yml。
 ;
 ; 0.2 是第一个会真正走升级分支的版本（0.1 装过 → 0.2 安装），
 ; 顺带修了三条只在真升级时才暴露的问题：
@@ -52,9 +55,16 @@
 !include "LogicLib.nsh"
 !include "WordFunc.nsh"        ; ${VersionCompare}
 
+; 安装包 exe / 卸载器 / 向导图标统一用软件自己的图标。
+; 这张 ico 就是 qisland.rc 编进 Qisland.exe 的那张，与 assets\圆形图标.ico 同源。
+; makensis 默认把工作目录切到本脚本所在目录（源码/nsis/），故相对路径 ..\src\。
+; 必须在 MUI_PAGE_* 之前定义，MUI2 才会把 Icon / UninstallIcon 指到这里。
+!define MUI_ICON    "..\src\qisland.ico"
+!define MUI_UNICON  "..\src\qisland.ico"
+
 !define APPNAME      "Qisland"
-!define APPVERSION   "0.3.1"     ; 与 src/version.h 的 QI_VERSION_STR 一致
-!define APPVERSION4  "0.3.1.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
+!define APPVERSION   "0.3.2"     ; 与 src/version.h 的 QI_VERSION_STR 一致
+!define APPVERSION4  "0.3.2.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
 !define UNINSTKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Qisland"
 !define RUNKEY       "Software\Microsoft\Windows\CurrentVersion\Run"
 !define WNDCLASS     "QislandLayeredClass"
@@ -83,7 +93,7 @@ VIAddVersionKey /LANG=1033 "ProductVersion"   "${APPVERSION}"
 VIAddVersionKey /LANG=1033 "FileVersion"      "${APPVERSION}"
 VIAddVersionKey /LANG=1033 "FileDescription"  "${APPNAME} Setup"
 VIAddVersionKey /LANG=1033 "CompanyName"      "Qisland"
-VIAddVersionKey /LANG=1033 "LegalCopyright"   "See LICENSE files in assets"
+VIAddVersionKey /LANG=1033 "LegalCopyright"   "See LICENSE and LICENSES"
 
 ; ---------- MUI2 页面 ----------
 !define MUI_ABORTWARNING
@@ -189,6 +199,20 @@ Function CleanLegacyFiles
   Delete "$INSTDIR\GPL-3.0.txt"
   Delete "$INSTDIR\录屏资料.md"
   Delete "$INSTDIR\Qisland_old.exe"
+  ; 0.3.1 之前随包释放过、现在不再带的文件（zip 版解压目录没有卸载器，
+  ; 这里按名单补删，保证升级后目录里只剩运行必需项）
+  Delete "$INSTDIR\README.md"
+  Delete "$INSTDIR\preview.png"
+  Delete "$INSTDIR\assets\圆形图标.ico"
+  Delete "$INSTDIR\assets\白色黑边.ico"
+  Delete "$INSTDIR\assets\白色黑边_透明.png"
+  Delete "$INSTDIR\assets\透明圆形.png"
+  Delete "$INSTDIR\assets\ATTRIBUTION.txt"
+  Delete "$INSTDIR\assets\Apache-2.0.txt"
+  Delete "$INSTDIR\assets\Font-Awesome-Free-License.txt"
+  Delete "$INSTDIR\assets\MIT-lunar-javascript.txt"
+  Delete "$INSTDIR\assets\NOTICE-lunar-calendar.txt"
+  Delete "$INSTDIR\assets\OPPO-Sans-4.0-License-Notice.txt"
 FunctionEnd
 
 ; ============================================================
@@ -201,10 +225,25 @@ Section "!${APPNAME}" SEC_MAIN
   SetOverwrite on
 
   File "${SRCDIR}\Qisland.exe"
-  File "${SRCDIR}\README.md"
   File "${SRCDIR}\LICENSE"           ; 项目自身 Apache-2.0 全文
-  File "${SRCDIR}\preview.png"
-  File /r "${SRCDIR}\assets"         ; 含 LICENSES/ 复制进来的第三方许可全文
+
+  ; assets\ 只放程序运行时真正会读的三个文件：
+  ;   font.c 私有加载两个 TTF，notify.c 用 PlaySoundW 播 notice.wav。
+  ; 图标（程序 / 托盘 / 胶囊）全部编在 exe 资源里或自绘，不读外部图片。
+  SetOutPath "$INSTDIR\assets"
+  File "${SRCDIR}\assets\fa-solid-900.ttf"
+  File "${SRCDIR}\assets\OPPO Sans 4.0.ttf"
+  File "${SRCDIR}\assets\notice.wav"
+
+  ; 第三方许可全文按分发合规要求保留，但单独放 LICENSES\，不混进 assets\。
+  ; OPPO Sans 许可要求任何副本都保留版权声明与协议全文。
+  SetOutPath "$INSTDIR\LICENSES"
+  File "${SRCDIR}\LICENSES\ATTRIBUTION.txt"
+  File "${SRCDIR}\LICENSES\Apache-2.0.txt"
+  File "${SRCDIR}\LICENSES\Font-Awesome-Free-License.txt"
+  File "${SRCDIR}\LICENSES\MIT-lunar-javascript.txt"
+  File "${SRCDIR}\LICENSES\NOTICE-lunar-calendar.txt"
+  File "${SRCDIR}\LICENSES\OPPO-Sans-4.0-License-Notice.txt"
 
   ; 卸载器永远是**本版**生成的，文件列表与本版一致。
   WriteUninstaller "$INSTDIR\uninst.exe"
@@ -240,14 +279,17 @@ SectionEnd
 ; ============================================================
 Section "Uninstall"
   Delete "$INSTDIR\Qisland.exe"
-  Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\LICENSE"
+  ; README.md / preview.png 本版已不释放，这里只补删旧版遗留
+  Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\preview.png"
   Delete "$INSTDIR\uninst.exe"
   Delete "$INSTDIR\ffmpeg.exe"
   Delete "$INSTDIR\FFmpeg-许可与来源.txt"
   Delete "$INSTDIR\GPL-3.0.txt"
   Delete "$INSTDIR\录屏资料.md"
+  Delete "$INSTDIR\LICENSES\*.*"
+  RMDir "$INSTDIR\LICENSES"
   Delete "$INSTDIR\assets\*.*"
   RMDir "$INSTDIR\assets"
   RMDir "$INSTDIR"

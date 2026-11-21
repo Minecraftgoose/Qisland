@@ -426,5 +426,39 @@
 
 /* 仓库地址：about.c 绘制 / settings_boxes 命中框 / sys.c 打开浏览器三处唯一来源。 */
 #define QISLAND_REPO_URL    L"https://github.com/Minecraftgoose/Qisland/"
+/* GitHub Releases API 用的 owner / repo，与上面那条地址同源，别两处各写一份。 */
+#define QI_REPO_OWNER       "Minecraftgoose"
+#define QI_REPO_NAME        "Qisland"
+
+/* ---- 更新页（设置页左栏「通用」与「关于」中间，SET_TAB_UPDATE）----
+   右栏上半部显示当前版本 + 「检查更新」按钮，下半部是可滚轮滚动的结果区。
+   检查失败时结果区直接贴服务器返回的原始响应（完整字节另存 %TEMP%），
+   同时弹一条 Qisland 即时通知，正文是同一份文本的开头。 */
+#define UPD_TITLE_Y         0.170       /* 「当前版本」小标题 */
+#define UPD_VER_Y           0.250       /* 版本号 */
+#define UPD_BTN_Y           0.355       /* 按钮 */
+#define UPD_BTN_H           0.110
+#define UPD_BTN_W_RATIO     0.520       /* 占右栏宽 */
+#define UPD_BODY_Y          0.510       /* 结果区起点 */
+#define UPD_BODY_H          0.340       /* 止于 0.850H，避开 0.93H 横点 */
+#define UPD_SCROLL_GAP      0.028       /* 右缘滚动条留白（占卡片高） */
+#define UPD_LINE_GAP        1.55        /* 行高 / 字号 */
+
+#define UPD_TITLE_PX_RATIO  0.044
+#define UPD_TITLE_PX_MIN    17
+#define UPD_TITLE_PX_MAX    26
+#define UPD_VER_PX_RATIO    0.076
+#define UPD_VER_PX_MIN      28
+#define UPD_VER_PX_MAX      44
+#define UPD_BTN_PX_RATIO    0.042
+#define UPD_BTN_PX_MIN      16
+#define UPD_BTN_PX_MAX      24
+#define UPD_TEXT_PX_RATIO   0.030
+#define UPD_TEXT_PX_MIN     13
+#define UPD_TEXT_PX_MAX     18
+
+#define UPD_BTN_R           86          /* 按钮底色，与 SET_ON_* 同色系 */
+#define UPD_BTN_G           186
+#define UPD_BTN_B           244
 
 #endif /* QISLAND_CONFIG_H */

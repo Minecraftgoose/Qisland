@@ -43,6 +43,7 @@ struct App {
 
     int       visible, dirty, hover, prevDown, drag, rawOK;
     int       trayOK;           /* 托盘图标已 NIM_ADD，退出时要 NIM_DELETE */
+    int       dpiReady;         /* window_init 完成后才允许 WM_DPICHANGED 重建资源 */
     /* 按下→松开期间记录，用来区分「单击」与「按住拖动」 */
     int       pressId, pressX, pressY, pressMoved;
     int       noteSel;          /* 左键按住便签文本区：正在拖动框选 */

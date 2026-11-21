@@ -6,8 +6,9 @@ rem (the runtime folder that contains assets\) before running.
 rem Requires at runtime, in assets\ next to Qisland.exe:
 rem   fa-solid-900.ttf          (FA icons)
 rem   OPPO Sans 4.0.ttf         (global UI font, unmodified per its license)
-rem   OPPO Sans 4.0 License Notice.txt (license, must be kept)
-rem   notice.mp3                (notification sound, MCI/winmm; optional)
+rem   notice.wav                (notification sound, PCM WAV / PlaySoundW; optional)
+rem Third-party license texts live in LICENSES/ at the repo root; CI copies
+rem them into assets\ before running makensis, so the installer carries them.
 setlocal
 cd /d "%~dp0"
 set CC=gcc
@@ -17,7 +18,7 @@ rem (22 project + 2 vendored lunar library .c). Keep this list in sync.
 rem tests.c / tests.h were removed in 0.3: no test code ships in the product.
 rem settings.c uses the registry (HKCU Run) -> needs -ladvapi32.
 rem tray.c uses Shell_NotifyIconW -> shell32 already linked.
-rem notify.c uses mciSendStringW for notice.mp3 -> needs -lwinmm.
+rem notify.c uses PlaySoundW for assets\notice.wav -> needs -lwinmm.
 rem CI reads SRC/LIBS from this file, so keep both lines as the single source.
 set SRC=main.c window.c canvas.c font.c sys.c anim.c countdown.c note.c perf.c date.c lunar.c clip.c notify.c balloon.c tooltip.c settings.c about.c capsuleicon.c tray.c cards.c input.c ui.c vendor\lunar_date.c vendor\solar_term.c
 set LIBS=-luser32 -lgdi32 -lshell32 -lshlwapi -lole32 -loleaut32 -ladvapi32 -limm32 -lwinmm -lm

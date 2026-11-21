@@ -6,11 +6,14 @@
  *   · 不用全局 WH_MOUSE_LL 钩子；滚轮走 Raw Input(RIDEV_INPUTSINK)，
  *     因为 WM_MOUSEWHEEL 只发给焦点窗口而本窗口 WS_EX_NOACTIVATE
  *   · 悬停与点击由主循环轮询（ui_poll），窗口过程只做消息路由
+ *   · 0.3.1 起：进程 DPI 感知由 qisland.manifest 声明，运行时按窗口所在
+ *     显示器取 DPI，并在 WM_DPICHANGED 时重建画布 / 字体 / 命中表
  */
 #include "window.h"
 #include "app.h"
 #include "config.h"
 #include "canvas.h"
+#include "font.h"
 #include "anim.h"
 #include "countdown.h"
 #include "ui.h"
@@ -22,6 +25,10 @@
 
 #ifndef WM_CLIPBOARDUPDATE
 #define WM_CLIPBOARDUPDATE 0x031D
+#endif
+/* Win7 SDK 没有 WM_DPICHANGED（Win8.1 才加），自己兜底，不抬 WINVER */
+#ifndef WM_DPICHANGED
+#define WM_DPICHANGED 0x02E0
 #endif
 
 static App *app_of(HWND hwnd)
@@ -70,6 +77,93 @@ int window_text_cursor(const App *a, int cx, int cy)
             cy >= nb.y && cy < nb.y + nb.h);
 }
 
+/* ---------------- 高 DPI（0.3.1）----------------
+   取 DPI 的优先级：
+     GetDpiForWindow(hwnd)  Win10 1607+，返回**窗口所在显示器**的真实 DPI
+     GetDpiForSystem()      Win8.1+，系统 DPI
+     GetDeviceCaps(LOGPIXELSX) 全版本兜底，但只反映主屏，per-monitor 会错
+   两个新 API 全部 GetProcAddress 动态取，不抬 WINVER、不引入链接期依赖，
+   Win7 照样能跑。user32 是常驻系统 DLL，这里不 FreeLibrary（与原实现一致）。 */
+static UINT window_query_dpi(HWND hwnd)
+{
+    HMODULE u32 = LoadLibraryW(L"user32.dll");
+    HDC sdc;
+    int dpi;
+    UINT d;
+
+    if (u32) {
+        UINT (WINAPI *pWin)(HWND) = (UINT (WINAPI *)(HWND))(void *)
+            GetProcAddress(u32, "GetDpiForWindow");
+        if (pWin && hwnd) {
+            d = pWin(hwnd);
+            if (d >= DPI_BASE) return d;
+        }
+        UINT (WINAPI *pSys)(void) = (UINT (WINAPI *)(void))(void *)
+            GetProcAddress(u32, "GetDpiForSystem");
+        if (pSys) {
+            d = pSys();
+            if (d >= DPI_BASE) return d;
+        }
+    }
+    sdc = GetDC(NULL);
+    dpi = sdc ? GetDeviceCaps(sdc, LOGPIXELSX) : DPI_BASE;
+    if (sdc) ReleaseDC(NULL, sdc);
+    return (dpi >= DPI_BASE) ? (UINT)dpi : (UINT)DPI_BASE;
+}
+
+static double window_scale_from_dpi(UINT dpi)
+{
+    double u = (double)dpi / (double)DPI_BASE;
+    if (u < DPI_SCALE_MIN) u = DPI_SCALE_MIN;
+    if (u > DPI_SCALE_MAX) u = DPI_SCALE_MAX;   /* 0.3 之前钳在 2.0 */
+    return u;
+}
+
+/* WM_DPICHANGED：窗口被拖到不同缩放的显示器、或用户改了系统缩放时，
+   重新按新 u 建立画布尺寸、超采样档、HFONT 与字形缓存。
+   wParam 低字是新 DPI，lParam 是系统建议的新窗口矩形（屏幕坐标）。
+   返回 0 表示已自行调整窗口，系统不再插手。 */
+static void window_apply_dpi(App *a, HWND hwnd, UINT dpi, const RECT *suggested)
+{
+    double nu, w, h, r, gw, gh, gr;
+    int ss, W, H, x, y;
+    Canvas nc;
+
+    /* 初始化还没完成（CreateWindowExW 期间）或 DPI 没变：都不要重建 */
+    if (!a->dpiReady) return;
+    nu = window_scale_from_dpi(dpi);
+    if (fabs(nu - a->u) < 0.001) return;
+
+    ss = (nu > DPI_SS_THRESHOLD) ? 2 : SHAPE_SS;
+    a->scrW = GetSystemMetrics(SM_CXSCREEN);
+    a->scrH = GetSystemMetrics(SM_CYSCREEN);
+    anim_init_sizes(&a->anim, a->scrW, a->scrH, nu, &W, &H);
+    /* anim_init_sizes 会把动画尺寸重置成默认视图，这里立刻恢复当前视图，
+       避免跨屏时卡片尺寸突然跳一下 */
+    anim_view_size(&a->anim, a->ui.view, &w, &h, &r);
+    a->anim.curW = w; a->anim.curH = h; a->anim.curR = r;
+
+    /* 先成功分配新画布再换掉旧的：几十 MB 的 DIB 分配失败时保持原状，
+       不会出现"旧画布已释放、新画布没建成"的崩坏状态 */
+    if (!canvas_init(&nc, W, H, nu, ss)) return;
+    canvas_shutdown(&a->canvas);
+    a->canvas = nc;
+
+    a->u = nu; a->ss = ss; a->winW = W; a->winH = H;
+
+    /* 字号按 u 生成 HFONT、字形缓存按 (码点,字号) 索引，两者都必须重建 */
+    font_shutdown(&a->fonts);
+    font_init(&a->fonts, nu);
+
+    x = suggested ? suggested->left : (a->scrW - W) / 2;
+    y = suggested ? suggested->top  : (int)(TOP_GAP * nu + 0.5);
+    SetWindowPos(hwnd, NULL, x, y, W, H, SWP_NOZORDER | SWP_NOACTIVATE);
+
+    anim_geometry(&a->anim, &gw, &gh, &gr);
+    ui_layout(a, gw * a->u, gh * a->u);   /* 命中表与画布一起刷新 */
+    a->dirty = 1;
+}
+
 /* 灵动岛本身的右键菜单**已整体删除**（本轮用户要求）。
    原来这里有一个用 ●/○ 圆点跳卡 + − 隐藏 + × 退出的 popup_menu，
    现在菜单只在系统托盘图标上，见 tray.c。右键点岛什么都不弹。 */
@@ -102,6 +196,11 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 
     switch (msg) {
+    case WM_DPICHANGED:
+        /* 低字 = 新 DPI X；lParam = 系统建议的新窗口矩形。
+           自己重建资源并 SetWindowPos，返回 0 告诉系统不用再插手。 */
+        window_apply_dpi(a, hwnd, LOWORD(wp), (const RECT *)lp);
+        return 0;
     case WM_APP_BALLOON_SIGNAL:
         /* WinEvent 回调只送 (event, HWND)；气泡文本由主线程自己读 */
         balloon_on_signal(a, (DWORD)wp, (HWND)lp);
@@ -221,19 +320,17 @@ int window_init(App *a)
     int posX, posY;
     RAWINPUTDEVICE rid;
 
+    /* 进程 DPI 感知优先由 qisland.manifest 声明（Win10 1703+ PerMonitorV2、
+       Win8.1+ PerMonitor）。Win7 不认 manifest 里的 pm / dpiAwareness，
+       这里用 SetProcessDPIAware() 兜底；manifest 已生效时该调用返回 FALSE，
+       不会把感知级别降回 System DPI。 */
     u32 = LoadLibraryW(L"user32.dll");
     if (u32) pSetDpi = (BOOL (WINAPI *)(void))(void *)
         GetProcAddress(u32, "SetProcessDPIAware");
     if (pSetDpi) pSetDpi();
-    {
-        HDC sdc = GetDC(NULL);
-        int dpi = GetDeviceCaps(sdc, LOGPIXELSX);
-        ReleaseDC(NULL, sdc);
-        if (dpi < 96) dpi = 96;
-        a->u = (double)dpi / 96.0;
-        if (a->u > 2.0) a->u = 2.0;
-        a->ss = (a->u > 1.25) ? 2 : SHAPE_SS;
-    }
+
+    a->u  = window_scale_from_dpi(window_query_dpi(NULL));
+    a->ss = (a->u > DPI_SS_THRESHOLD) ? 2 : SHAPE_SS;
     a->scrW = GetSystemMetrics(SM_CXSCREEN);
     a->scrH = GetSystemMetrics(SM_CYSCREEN);
     anim_init_sizes(&a->anim, a->scrW, a->scrH, a->u, &a->winW, &a->winH);
@@ -273,11 +370,13 @@ int window_init(App *a)
     RegisterHotKey(a->hwnd, HOTKEY_ID, MOD_CONTROL | MOD_ALT, 'N');
     SetWindowPos(a->hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    a->dpiReady = 1;   /* 资源齐了，之后才允许 WM_DPICHANGED 重建 */
     return 1;
 }
 
 void window_shutdown(App *a)
 {
+    a->dpiReady = 0;
     if (a->hwnd) {
         KillTimer(a->hwnd, IDT_COUNTDOWN);
         UnregisterHotKey(a->hwnd, HOTKEY_ID);

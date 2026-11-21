@@ -1,0 +1,72 @@
+Qisland — third-party attribution / 第三方署名与许可
+================================================================
+
+本目录（LICENSES/）是仓库里所有第三方许可全文的集中存放处。
+CI 在组装 NSIS 打包目录时会把本目录全部文件复制进
+「软件/Qisland/assets/」，因此安装包里同样带有全部许可全文
+（OPPO Sans 许可要求任何副本都保留版权声明与协议全文）。
+
+索引：
+  Apache-2.0.txt                    Apache License 2.0 全文
+  MIT-lunar-javascript.txt          MIT License（lunar-javascript 数据表）
+  Font-Awesome-Free-License.txt     Font Awesome Free License
+  OPPO-Sans-4.0-License-Notice.txt  OPPO Sans Fonts License Notice
+  NOTICE-lunar-calendar.txt         vendored lunar-calendar 的修改清单 / NOTICE
+  ATTRIBUTION.txt                   本文件
+
+----------------------------------------------------------------
+[1] OPPO Sans 4.0  —— 全局正文与标签字体
+Copyright 2024 Guangdong OPPO Mobile Telecommunications Corp., Ltd.
+Included file: assets/"OPPO Sans 4.0.ttf"  (unmodified)
+License: OPPO Sans Fonts License Agreement
+         (full text in LICENSES/OPPO-Sans-4.0-License-Notice.txt)
+NOTICE: Qisland uses OPPO Sans Fonts. / Qisland 使用了 OPPO Sans 字体。
+The font is bundled unmodified. It is not redistributed or sold on a
+stand-alone basis, and no modification was made to the font or any of
+its components, per the License Agreement.
+
+[2] Font Awesome Free 6.7.2  —— 图标字体
+Copyright (c) Fonticons, Inc. (https://fontawesome.com)
+Included file: assets/fa-solid-900.ttf
+License: see LICENSES/Font-Awesome-Free-License.txt for full text.
+  Icons (SVG/JS)  : CC BY 4.0  - https://creativecommons.org/licenses/by/4.0/
+  Fonts (TTF/WOFF): SIL OFL 1.1 - https://scripts.sil.org/OFL
+  Code / metadata : MIT
+Reserved Font Name: "Font Awesome". No modifications were made to the font.
+Icon codepoints used by Qisland were taken from the official metadata file
+metadata/icons.yml in that package; see src/icons.h.
+
+[3] lunar-calendar  —— 本地农历 / 24 节气库（纯 C）
+Upstream: https://github.com/iseemoon/lunar-calendar
+License: Apache License 2.0 (full text in LICENSES/Apache-2.0.txt)
+Files: compiled into Qisland.exe (src/vendor/lunar_date.c, solar_term.c)
+Modifications: see LICENSES/NOTICE-lunar-calendar.txt
+Covers 1900-2099 with exact per-year solar-term timestamps. No network use.
+
+[4] lunar-javascript  —— 每日宜忌通书数据表（仅数据，MIT）
+Upstream: https://github.com/6tail/lunar-javascript (v1.7.7)
+License: MIT (full text in LICENSES/MIT-lunar-javascript.txt)
+Files: compiled into Qisland.exe as static tables (src/vendor/huangli_data.h).
+Lookup logic re-implemented in pure C. No JavaScript runtime, no network
+requests, no data modification.
+
+[5] 通知音效 notice.wav  —— 即时通知提示音（0.3 起）
+Included file: assets/notice.wav  (PCM 16-bit, 44.1 kHz, mono, 0.48 s)
+Source: "notice.mp3" provided by the project maintainer for Qisland 0.3,
+        converted losslessly to uncompressed WAV for playback via PlaySoundW.
+        ID3 metadata of the original: Title "Feather Tap Pip",
+        Artist "noname", Year "2026".
+License: no separate license text or usage grant was supplied with the file.
+         Confirm the right to redistribute before any public distribution.
+Playback: Qisland calls PlaySoundW(SND_FILENAME | SND_ASYNC | SND_NODEFAULT)
+         on each notification. A missing file or an unavailable audio device
+         is silently ignored, so the notification itself always works.
+         No decoder library is bundled.
+
+----------------------------------------------------------------
+Both fonts are loaded privately at runtime with AddFontResourceExW
+(FR_PRIVATE) and removed on shutdown. Neither is installed system-wide.
+Keep assets/ next to Qisland.exe; missing fonts fall back gracefully
+(OPPO Sans -> Segoe UI / Microsoft YaHei, FA -> geometric icons).
+The notification sound is optional in the same way: if assets/notice.wav is
+absent, notifications stay silent instead of failing.

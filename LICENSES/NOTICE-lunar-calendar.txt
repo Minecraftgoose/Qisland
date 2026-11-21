@@ -1,0 +1,61 @@
+Qisland bundles vendored copies of TWO third-party components (details below).
+
+================================================================
+[2] lunar-javascript — 每日宜忌通书数据表（仅数据，非代码）
+Upstream: https://github.com/6tail/lunar-javascript  (v1.7.7)
+License:  MIT (see LICENSE-MIT-lunar.txt in this folder)
+Files:    huangli_data.h
+            - LunarUtil.YI_JI       141 词条，用 zh-CN i18n 表还原为中文
+            - LunarUtil.DAY_YI_JI   34,149 字符编码表（原样，分段拼接）
+            - LunarUtil.SHEN_SHA[0] 「无」
+          The lookup rules (getDayYi / getDayJi) were re-implemented in
+          pure C in src/lunar.c. No JS runtime, no network, no data edits.
+          The month pillar must be the SOLAR-TERM month (月建), not the
+          lunar month — verified against upstream: 2025-01-29 is 丁丑月,
+          not 戊寅月.
+
+================================================================
+[1] lunar-calendar  —— 本地农历 / 24 节气库（纯 C）
+
+  lunar-calendar  —  Chinese lunar date and 24 solar terms implemented with C
+  Upstream: https://github.com/iseemoon/lunar-calendar
+  License:  Apache License, Version 2.0 (see LICENSE in this folder)
+  Files:    lunar_date.c / lunar_date.h / solar_term.c / solar_term.h (Apache-2.0)
+
+Modifications made to [1] for Qisland (no data tables were changed):
+  1. lunar_date.c  : #include "date.h" -> "lunar_date.h"
+                     (upstream ships the header under a different name)
+  2. lunar_date.h  : added <stdint.h> for int32_t / uint8_t
+  3. solar_term.h  : #include "date.h" -> "lunar_date.h"
+  4. solar_term.c  : declared the SOLAR_TERM_TIMES lookup pointer const
+                     (silences -Wdiscarded-qualifiers under -Wall -Wextra)
+  5. All four files got a short header comment noting these changes.
+  6. Renamed the library's `DATE` struct to `LUNAR_DATE` (all four files).
+     Windows wtypes.h already defines `DATE` as `double`; without this the
+     MinGW build fails with "conflicting types for DATE".
+  7. solar_term.c: replaced localtime() with fixed UTC+8 integer conversion
+     in get_day_of_solar_term(). Upstream derived the solar-term calendar
+     day from the process's local timezone, which is wrong for the Chinese
+     calendar (defined on UTC+8) and breaks for pre-1970 dates on Windows
+     CRT. Example: 2026 冬至 is UTC 2026-12-21 20:49 = 2026-12-22 in UTC+8.
+     No data tables were touched, only the timestamp -> y/m/d conversion.
+
+  7b. FIX to patch 7: the first version of that conversion forgot the
+     +719468 epoch shift. Hinnant civil_from_days counts days from
+     0000-03-01, while Unix epoch days count from 1970-01-01. Without the
+     shift every solar term came out in year 0056, so ALL 24 terms looked
+     "already passed": the date card showed 「距小寒0天」 for 2026-11-18,
+     the month pillar collapsed to 子月 (庚子月) all year, and the yi/ji
+     lookup used the wrong month. Verified full 2026 term list after the
+     fix: 小寒 01-05 ... 立冬 11-07 / 小雪 11-22 / 冬至 12-22.
+  8. Added two local #pragma GCC diagnostic ignored lines in lunar_date.h
+     for -Wsign-compare / -Wold-style-declaration, which upstream triggers.
+     Project code is still compiled with -Wall -Wextra fully enabled.
+
+Coverage: solar years 1900..2099 (lunar-year tables run 1887..2111).
+The 24 solar terms are stored as exact UTC millisecond timestamps for every
+year, not approximated by a formula. All strings are UTF-8; Qisland converts
+them to wide strings at the boundary in src/lunar.c.
+
+No network access, no threads, no allocations, no files, no Win7 update
+requirement. Compiled directly into Qisland.exe.

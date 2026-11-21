@@ -200,13 +200,24 @@
 #define NOTIFY_MS       5000              /* 默认显示毫秒数；到点自动消失 */
 #define NOTIFY_VIEW_TAG  -1              /* 通知不是导航卡片，不占竖点/横点 */
 
-/* ---- 通知音效（0.3 起）----
-   assets\notice.mp3 随安装包释放，与 Qisland.exe 同级的 assets\ 目录里。
-   由 notify.c 用系统自带 MCI（winmm）异步播放，无需第三方解码库。
-   缺文件、无 MPEG 驱动、格式不支持时**一律静默跳过**，绝不影响通知本身，
-   也不弹任何错误框。MP3 是 Windows MCI 原生可播格式，不必转 WAV。 */
-#define NOTIFY_SOUND_FILE   L"notice.mp3"
-#define NOTIFY_SOUND_ALIAS  L"qisland_sfx"
+/* ---- 通知音效（0.3 起用 WAV PCM；0.3.1 起改用 PlaySoundW）----
+   assets\notice.wav 随安装包释放，与 Qisland.exe 同级的 assets\ 目录里。
+   用 PlaySoundW(SND_FILENAME | SND_ASYNC | SND_NODEFAULT) 播放：Windows
+   原生、无解码延迟、不依赖系统 MPEG 驱动、不需要任何第三方解码库。
+   原 notice.mp3 有约 42ms 的编码器首尾填充，且 MCI 播放依赖 MPEG 驱动，
+   短提示音用未压缩 WAV 更合适（详见交付说明）。
+   缺文件 / 无音频设备时**一律静默跳过**，绝不影响通知本身，也不弹错误框。 */
+#define NOTIFY_SOUND_FILE   L"notice.wav"
+
+/* ---- 高 DPI 适配（0.3.1 起）----
+   进程 DPI 感知由 qisland.manifest 声明（Win10 1703+ PerMonitorV2，
+   Win8.1+ PerMonitor，老系统回退 SetProcessDPIAware）。
+   运行时按「窗口所在显示器」取 DPI，处理 WM_DPICHANGED 跨屏切换。
+   缩放不再钳死在 200%，放宽到 300%。 */
+#define DPI_BASE            96            /* 100% = 96 DPI */
+#define DPI_SCALE_MIN       1.0
+#define DPI_SCALE_MAX       3.0           /* 支持到 300% */
+#define DPI_SS_THRESHOLD    1.25          /* 高 DPI 时形状超采样降档到 2，省光栅化 */
 
 /* 通知卡片布局：图标区 / 文字区都用卡片宽高的比例，绘制与测试共用同一组宏。
    TEXT_X 必须明显大于 ICON_X + ICON_S*H/W，否则文字会贴到图标上。

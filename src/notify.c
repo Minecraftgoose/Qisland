@@ -1,6 +1,6 @@
 /* notify.c — 即时通知：内存态覆盖视图、图标光栅化、两行文本、无持久化
  *
- * 0.3 起：每次弹出顺带播一声 assets\notice.mp3（MCI 异步，静默失败）。
+ * 0.3.1 起：每次弹出顺带播一声 assets\notice.wav（PlaySoundW 异步，静默失败）。
  * 「不写盘」仍成立 —— 通知内容不持久化；读的只是 exe 旁的运行时资源文件，
  * 与字体走同一套 assets\ 目录约定，不是新增的数据落盘。
  */
@@ -11,7 +11,7 @@
 #include "icons.h"
 #include "anim.h"
 #include "ui.h"
-#include <mmsystem.h>      /* mciSendStringW；common.h 定义了 WIN32_LEAN_AND_MEAN，
+#include <mmsystem.h>      /* PlaySoundW；common.h 定义了 WIN32_LEAN_AND_MEAN，
                               windows.h 不会自动带进 mmsystem.h，必须显式包含 */
 
 void notify_init(Notify *n)
@@ -21,14 +21,18 @@ void notify_init(Notify *n)
 
 int notify_active(const Notify *n) { return n && n->active; }
 
-/* ---------------- 通知音效：MCI 异步播放 assets\notice.mp3 ----------------
-   PlaySound 只认 WAV，MP3 走系统自带 MCI（winmm，Win7+ 随系统）。
-   全程忽略错误码：文件缺失 / 无 MPEG 驱动 / 正在被占用，都只是"没声音"，
-   通知卡片照常显示，不弹框、不阻塞、不写盘、不建线程。
-   alias 每次复用：先 close 上一次的（可能仍在播），再 open，避免累积设备。 */
+/* ---------------- 通知音效：PlaySoundW 异步播放 assets\notice.wav ----------------
+   WAV PCM 由系统原生播放：无解码延迟、不依赖 MPEG 驱动、不需要解码库。
+   SND_NODEFAULT 必须带 —— 否则找不到文件时会播系统默认「叮」声。
+   SND_ASYNC 下新调用会中断上一次正在播的那一声，正好对应「新通知顶掉
+   旧通知时重播」；不传 SND_NOSTOP。
+   返回值一律不看：缺文件 / 无音频设备都只是"没声音"，通知卡片照常显示，
+   不弹框、不阻塞、不写盘、不建线程。path 用静态缓冲，保证异步播放期间
+   字符串始终有效（不依赖 PlaySound 内部是否复制参数）。 */
 static void notify_sound_play(void)
 {
-    WCHAR exe[1024], path[1024], cmd[1024];
+    static WCHAR path[1024];
+    WCHAR exe[1024];
     WCHAR *slash;
     DWORD n;
 
@@ -43,25 +47,7 @@ static void notify_sound_play(void)
     path[1023] = 0;
     if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES) return;
 
-    /* 先关旧 alias；返回值一律不看（第一次调用时本就没有设备） */
-    _snwprintf(cmd, 1024, L"close %s", NOTIFY_SOUND_ALIAS);
-    cmd[1023] = 0;
-    mciSendStringW(cmd, NULL, 0, NULL);
-
-    /* 先让 MCI 按扩展名挑驱动；个别系统要显式 type mpegvideo，再退一次。 */
-    _snwprintf(cmd, 1024, L"open \"%s\" alias %s", path, NOTIFY_SOUND_ALIAS);
-    cmd[1023] = 0;
-    if (mciSendStringW(cmd, NULL, 0, NULL) != 0) {
-        _snwprintf(cmd, 1024, L"open \"%s\" type mpegvideo alias %s",
-                   path, NOTIFY_SOUND_ALIAS);
-        cmd[1023] = 0;
-        if (mciSendStringW(cmd, NULL, 0, NULL) != 0) return;
-    }
-
-    /* 不传 MCI_WAIT：默认异步返回，主循环 / 动画一帧都不等 */
-    _snwprintf(cmd, 1024, L"play %s", NOTIFY_SOUND_ALIAS);
-    cmd[1023] = 0;
-    mciSendStringW(cmd, NULL, 0, NULL);
+    PlaySoundW(path, NULL, SND_FILENAME | SND_ASYNC | SND_NODEFAULT);
 }
 
 HICON notify_icon_from_file(const WCHAR *path)
@@ -75,7 +61,7 @@ HICON notify_icon_from_file(const WCHAR *path)
 }
 
 /* 弹出：保存现场 → 覆盖尺寸档为中卡片 → 强制显示与展开 → 播一声音效。
-   不写盘、不排队；唯一的 IO 是读 exe 旁的运行时资源 notice.mp3。 */
+   不写盘、不排队；唯一的 IO 是读 exe 旁的运行时资源 notice.wav。 */
 static void notify_begin(Notify *n, App *a, DWORD ms)
 {
     if (n->active) n->replaced++;

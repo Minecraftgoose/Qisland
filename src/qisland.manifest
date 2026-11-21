@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <!-- Qisland 进程清单：只做 DPI 感知声明，不引入 comctl32 v6 等依赖。
+       assemblyIdentity 的 version 只是清单标识，固定 1.0.0.0，
+       与发版版本号（src/version.h）无关，CI 不需要同步它。 -->
+  <assemblyIdentity type="win32"
+                    name="Qisland"
+                    version="1.0.0.0"
+                    processorArchitecture="*"/>
+  <description>Qisland Dynamic Island</description>
+
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- 2005 命名空间：Win7 只认 true/false，Win8.1+ 认 true/pm。
+           Win7 上这一行不生效，由 window_init 里的 SetProcessDPIAware() 兜底。 -->
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <!-- 2016 命名空间：Win10 1703+ 按此列表取第一个支持的级别。
+           PerMonitorV2 会在跨屏 / 缩放变化时给窗口发 WM_DPICHANGED，
+           window_proc 据此重建画布与字体。老系统忽略整个节点。 -->
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2,PerMonitor,System</dpiAwareness>
+    </windowsSettings>
+  </application>
+</assembly>

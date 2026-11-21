@@ -3,7 +3,8 @@
 #
 # 仓库是扁平结构（本文件所在仓库）：
 #   Qisland/
-#   ├─ .gitignore  AGENTS.md  README.md
+#   ├─ .gitignore  AGENTS.md  README.md  LICENSE（项目自身 Apache-2.0）
+#   ├─ LICENSES/（全部第三方许可全文，CI 复制进安装包 assets/）
 #   ├─ src/  nsis/Qisland.nsi  assets/
 #   └─ .github/workflows/build.yml
 #
@@ -30,7 +31,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号，如 0.3；留空则用 tag，再退回 src/version.h'
+        description: '版本号，如 0.3.1；留空则用 tag，再退回 src/version.h'
         required: false
         default: ''
       tag:
@@ -89,11 +90,15 @@ jobs:
         run: |
           set -euo pipefail
           S="_release/Qisland"
-          mkdir -p "$S/源码/src" "$S/源码/nsis" "$S/软件/Qisland"
-          cp -a src/. "$S/源码/src/"
+          mkdir -p "$S/源码/src" "$S/源码/nsis" "$S/软件/Qisland/assets"
+          cp -a src/. "$S/源码/src/"              # 含 qisland.manifest，windres 要读
           cp -a nsis/. "$S/源码/nsis/"
-          cp -a assets/. "$S/软件/Qisland/assets/"   # 含 0.3 的 notice.mp3
+          cp -a assets/. "$S/软件/Qisland/assets/"   # 字体 / 图标 / notice.wav
+          # LICENSES/ 是第三方许可全文的唯一存放处；复制进 assets/，
+          # 由 NSIS 的 File /r 一并释放，满足 OPPO Sans「副本保留协议全文」。
+          cp -a LICENSES/. "$S/软件/Qisland/assets/"
           cp README.md "$S/软件/Qisland/README.md"
+          cp LICENSE "$S/软件/Qisland/LICENSE"   # 项目自身 Apache-2.0 也随包分发
           # NSIS 的 File 指令硬性要求 preview.png；仓库没有就用包内透明 PNG 兜底
           if [ -f preview.png ]; then
             cp preview.png "$S/软件/Qisland/preview.png"
@@ -101,10 +106,15 @@ jobs:
             cp assets/透明圆形.png "$S/软件/Qisland/preview.png"
           fi
           test -f "$S/源码/src/build.bat"
+          test -f "$S/源码/src/qisland.manifest"
           test -f "$S/源码/nsis/Qisland.nsi"
           test -f "$S/软件/Qisland/assets/fa-solid-900.ttf"
           test -f "$S/软件/Qisland/assets/OPPO Sans 4.0.ttf"
-          test -f "$S/软件/Qisland/assets/notice.mp3"
+          test -f "$S/软件/Qisland/assets/notice.wav"
+          test -f "$S/软件/Qisland/assets/ATTRIBUTION.txt"
+          test -f "$S/软件/Qisland/assets/Apache-2.0.txt"
+          test -f "$S/软件/Qisland/assets/OPPO-Sans-4.0-License-Notice.txt"
+          test -f "$S/软件/Qisland/LICENSE"
           test -f "$S/软件/Qisland/preview.png"
 
       # ---- 版本：只改 runner 上的工作副本，不回写仓库 ----
@@ -128,7 +138,7 @@ jobs:
               return ver, f"{a}.{b}.{c}.0", f"{a},{b},{c},0", bool(re.search(r"[-+]", m.group(4)))
 
           cur = re.search(r'QI_VERSION_STR\s+"([^"]+)"', open(vh, encoding="utf-8").read())
-          current = cur.group(1) if cur else "0.2"
+          current = cur.group(1) if cur else "0.3.1"
           ref = os.environ.get("GITHUB_REF", "")
           tag = os.environ.get("INPUT_TAG", "").strip() or (
               ref[len("refs/tags/"):] if ref.startswith("refs/tags/") else "")

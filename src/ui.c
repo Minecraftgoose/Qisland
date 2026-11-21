@@ -1274,6 +1274,6 @@ void ui_render(App *a)
     /* 气泡最后画，覆盖所有页面（含通知态的 early return） */
     tooltip_draw(a, &a->canvas);
 
-    if (!a->dump) canvas_present(&a->canvas, a->hwnd);
+    canvas_present(&a->canvas, a->hwnd);
     memcpy(a->lastClock, clockA, sizeof(a->lastClock));
 }

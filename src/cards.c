@@ -23,7 +23,7 @@
  *
  * 以后要加卡片：在下面 cards[] 里插一行，填好 tier / draw / group /
  * slot / vdot 即可。导航、竖点、尺寸、诊断表全部由这张表推导，
- * 不需要改 ui.c / anim.c / window.c / tests.c 里任何数字。
+ * 不需要改 ui.c / anim.c / window.c 里任何数字。
  */
 #include "cards.h"
 #include "config.h"

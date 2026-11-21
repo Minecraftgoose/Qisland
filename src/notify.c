@@ -1,4 +1,9 @@
-/* notify.c — 即时通知：内存态覆盖视图、图标光栅化、两行文本、无持久化 */
+/* notify.c — 即时通知：内存态覆盖视图、图标光栅化、两行文本、无持久化
+ *
+ * 0.3 起：每次弹出顺带播一声 assets\notice.mp3（MCI 异步，静默失败）。
+ * 「不写盘」仍成立 —— 通知内容不持久化；读的只是 exe 旁的运行时资源文件，
+ * 与字体走同一套 assets\ 目录约定，不是新增的数据落盘。
+ */
 #include "notify.h"
 #include "app.h"
 #include "canvas.h"
@@ -6,6 +11,8 @@
 #include "icons.h"
 #include "anim.h"
 #include "ui.h"
+#include <mmsystem.h>      /* mciSendStringW；common.h 定义了 WIN32_LEAN_AND_MEAN，
+                              windows.h 不会自动带进 mmsystem.h，必须显式包含 */
 
 void notify_init(Notify *n)
 {
@@ -13,6 +20,49 @@ void notify_init(Notify *n)
 }
 
 int notify_active(const Notify *n) { return n && n->active; }
+
+/* ---------------- 通知音效：MCI 异步播放 assets\notice.mp3 ----------------
+   PlaySound 只认 WAV，MP3 走系统自带 MCI（winmm，Win7+ 随系统）。
+   全程忽略错误码：文件缺失 / 无 MPEG 驱动 / 正在被占用，都只是"没声音"，
+   通知卡片照常显示，不弹框、不阻塞、不写盘、不建线程。
+   alias 每次复用：先 close 上一次的（可能仍在播），再 open，避免累积设备。 */
+static void notify_sound_play(void)
+{
+    WCHAR exe[1024], path[1024], cmd[1024];
+    WCHAR *slash;
+    DWORD n;
+
+    n = GetModuleFileNameW(NULL, exe, 1024);
+    if (n == 0 || n >= 1024) return;
+    exe[n] = 0;
+    slash = wcsrchr(exe, L'\\');
+    if (!slash) return;
+    slash[1] = 0;                         /* 截到 exe 所在目录，保留末尾反斜杠 */
+
+    _snwprintf(path, 1024, L"%sassets\\%s", exe, NOTIFY_SOUND_FILE);
+    path[1023] = 0;
+    if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES) return;
+
+    /* 先关旧 alias；返回值一律不看（第一次调用时本就没有设备） */
+    _snwprintf(cmd, 1024, L"close %s", NOTIFY_SOUND_ALIAS);
+    cmd[1023] = 0;
+    mciSendStringW(cmd, NULL, 0, NULL);
+
+    /* 先让 MCI 按扩展名挑驱动；个别系统要显式 type mpegvideo，再退一次。 */
+    _snwprintf(cmd, 1024, L"open \"%s\" alias %s", path, NOTIFY_SOUND_ALIAS);
+    cmd[1023] = 0;
+    if (mciSendStringW(cmd, NULL, 0, NULL) != 0) {
+        _snwprintf(cmd, 1024, L"open \"%s\" type mpegvideo alias %s",
+                   path, NOTIFY_SOUND_ALIAS);
+        cmd[1023] = 0;
+        if (mciSendStringW(cmd, NULL, 0, NULL) != 0) return;
+    }
+
+    /* 不传 MCI_WAIT：默认异步返回，主循环 / 动画一帧都不等 */
+    _snwprintf(cmd, 1024, L"play %s", NOTIFY_SOUND_ALIAS);
+    cmd[1023] = 0;
+    mciSendStringW(cmd, NULL, 0, NULL);
+}
 
 HICON notify_icon_from_file(const WCHAR *path)
 {
@@ -24,8 +74,8 @@ HICON notify_icon_from_file(const WCHAR *path)
     return sfi.hIcon;   /* 调用方 DestroyIcon */
 }
 
-/* 弹出：保存现场 → 覆盖尺寸档为中卡片 → 强制显示与展开。
-   不写盘、不排队、不做任何文件 IO。 */
+/* 弹出：保存现场 → 覆盖尺寸档为中卡片 → 强制显示与展开 → 播一声音效。
+   不写盘、不排队；唯一的 IO 是读 exe 旁的运行时资源 notice.mp3。 */
 static void notify_begin(Notify *n, App *a, DWORD ms)
 {
     if (n->active) n->replaced++;
@@ -57,6 +107,9 @@ static void notify_begin(Notify *n, App *a, DWORD ms)
         anim_geometry(&a->anim, &w, &h, &r);
         ui_layout(a, w * a->u, h * a->u);   /* 立刻刷新命中区，不留一帧空窗 */
     }
+
+    /* 新通知顶掉旧通知时也会重新播一声；失败完全静默 */
+    notify_sound_play();
 }
 
 void notify_show_fa(Notify *n, App *a, unsigned faIcon,

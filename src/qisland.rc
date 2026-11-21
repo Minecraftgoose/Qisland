@@ -5,7 +5,7 @@
  * 资源管理器 / Alt+Tab / 窗口类图标 / 系统托盘图标都用它。
  * ID 与 config.h 的 IDI_QISLAND 一致。
  *
- * 版本号唯一来源：version.h（QI_VERSION_STR / QI_VERSION_NUM = 0.2）。
+ * 版本号唯一来源：version.h（QI_VERSION_STR / QI_VERSION_NUM = 0.3）。
  * VS_VERSION_INFO 让「文件属性 → 详细信息」和安装包的版本信息一致。
  */
 #include "version.h"

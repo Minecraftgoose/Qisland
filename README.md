@@ -1,7 +1,7 @@
 # Qisland
 
 Windows 桌面「灵动岛」式小工具，纯 C + Win32，无第三方运行时库。
-当前版本 0.2，尚未正式发布。
+当前版本 0.3。
 
 ## 仓库结构
 
@@ -10,18 +10,18 @@ Qisland/
 ├─ .gitignore
 ├─ AGENTS.md
 ├─ README.md
-├─ src/                 # 25 个 .c + 32 个 .h + vendor/，含 build.bat / qisland.ico / qisland.rc
+├─ src/                 # 22 个项目 .c + vendor/ 2 个 .c，含 build.bat / qisland.ico / qisland.rc
 ├─ nsis/Qisland.nsi     # NSIS 3.x 安装包脚本
-├─ assets/              # 运行时字体、图标、第三方许可全文
+├─ assets/              # 运行时字体、图标、通知音效、第三方许可全文
 └─ .github/workflows/build.yml
 ```
 
-仓库里**不含任何 .exe**：编译与打包全部交给 CI。
+仓库里**不含任何 .exe、不含测试代码**：编译与打包全部交给 CI。
 
 ## 发版
 
 ```bash
-git tag v0.2
+git tag v0.3
 git push origin main --tags
 ```
 
@@ -38,14 +38,23 @@ runner 的临时目录里组装出对应层级，仓库本身保持上面的扁�
 ## 本地编译（可选）
 
 Windows + MinGW-w64 下进 `src/` 跑 `build.bat`，产物 `Qisland.exe`；把它放到与
-`assets/` 同级即可双击运行。`build.bat` 显式列出 25 个翻译单元，链接
-user32 / gdi32 / shell32 / shlwapi / ole32 / oleaut32 / advapi32 / imm32 / m。
+`assets/` 同级即可双击运行。`build.bat` 显式列出 24 个翻译单元，链接
+user32 / gdi32 / shell32 / shlwapi / ole32 / oleaut32 / advapi32 / imm32 / winmm / m。
+`winmm` 是 0.3 通知音效用的系统自带 MCI，不是第三方库。
 
 字体以 `AddFontResourceExW(FR_PRIVATE)` 私有加载、退出时卸载，不写入系统字体目录；
 缺少 `assets` 时 OPPO Sans 回退到 Segoe UI / 微软雅黑、Font Awesome 回退到几何图标，
 不会崩溃。
 
 安装包：`makensis nsis/Qisland.nsi`（需自备 NSIS 3.x 与运行时目录布局）。
+
+## 通知音效（0.3 起）
+
+`assets/notice.mp3` 是一段约 0.52 秒的提示音。每次即时通知弹出时，`notify.c`
+用 `mciSendStringW`（winmm）异步播一声；新通知顶掉旧通知时会重播。
+**缺文件、无 MPEG 驱动或格式不支持一律静默跳过** —— 通知卡片照常显示，
+不弹错误框、不阻塞主循环、不写盘、不建线程。音效是可选的运行时资源，
+与字体走同一套 `assets/` 目录约定。
 
 ## 版本号
 
@@ -55,7 +64,7 @@ user32 / gdi32 / shell32 / shlwapi / ole32 / oleaut32 / advapi32 / imm32 / m。
 
 ## 许可
 
-第三方字体与数据库的署名、许可全文见 `assets/ATTRIBUTION.txt` 及同目录 `LICENSE*`。
+第三方字体、音效与数据库的署名、许可全文见 `assets/ATTRIBUTION.txt` 及同目录 `LICENSE*`。
 
 - **OPPO Sans 4.0**：未修改、不得单独分发或售卖，需在软件里显著声明使用，
   任何副本保留版权声明与协议全文。
@@ -64,5 +73,7 @@ user32 / gdi32 / shell32 / shlwapi / ole32 / oleaut32 / advapi32 / imm32 / m。
 - **lunar-calendar**（`src/vendor/lunar_date.c`、`solar_term.c`）：Apache 2.0，
   修改清单见 `src/vendor/NOTICE.txt`。
 - **lunar-javascript v1.7.7**（`src/vendor/huangli_data.h`）：MIT，仅数据表。
+- **notice.mp3**：由项目维护者提供，ID3 标注 "Feather Tap Pip / noname / 2026"；
+  **未随附单独许可文本**，公开发布前请确认分发授权。
 
 二次分发请保留 `assets/` 全部许可文件与 `src/vendor/NOTICE.txt`。

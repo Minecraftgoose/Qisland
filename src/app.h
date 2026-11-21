@@ -53,51 +53,6 @@ struct App {
     DWORD     lastRender, lastWheel, renderCount;
     char      lastClock[16];
     char      lastSecClock[12];   /* 日期时钟页带秒，只在它展开时比较 */
-
-
-    /* 测试/诊断开关（命令行） */
-    int       bench, diag, wheelTest, gestureTest, cdTest, noteTest, perfTest;
-    int       clipTest, notifyTest;
-    int       balloonOff, balloonTest;
-    char     *dump;
-    DWORD     testStart, testElapsed;
-    int       wheelSent, wheelBefore, wheelLog[12], wheelLogN;
-    int       gestureStage, gestureMode1, gestureMode2, gestureMode3;
-    double    gestureVol;
-    int       cdStage, cdEnded, cdExpanded, cdVisible, cdCleared;
-    double    cdAfterMinUp, cdAfterMinDown, cdAfterSecUp;
-    int       cdHitN, cdMode, cdAccum, cdCurX, cdCurY;
-    RECT      cdNumR;
-    int       noteStage, noteLines0, noteLines1, noteOverflow, noteEditing;
-    int       noteLen, noteCaret, noteSysBar, noteRoundtrip, noteTopLine;
-    int       noteEditingAfterClick, noteTopLineBefore, noteTopLineUp;
-    int       noteSelAll, noteSelShift, noteSelDrag, noteSelReplace, noteSelLit;
-    int       noteSelCopy, noteSelUndo, noteSelStart, noteSelEnd;
-    int       perfStage, perfSamples0, perfSamples1, perfCpuOK, perfMemOK;
-    int       perfDiskOK, perfHwCPU, perfHwGPU, perfHwOS, perfRingsLit;
-    int       perfTextLit, perfNoDirtyWhenHidden, perfHiddenSamples;
-    /* --cliptest：剪贴板历史端到端 */
-    int       clipStage, clipCount0, clipCount1, clipDup, clipSelfSkip;
-    int       clipWriteOK, clipRoundtrip, clipListener, clipLit, clipSpill;
-    int       clipTopBefore, clipTopAfter, clipScrollOK, clipSelected;
-    int       clipSelfNoGrow, clipClickWriteOK, clipEmptyLit, clipThumb;
-    /* --notifytest：即时通知系统端到端 */
-    int       notifyStage, notifyActive0, notifyActive1, notifyMidSize;
-    int       notifyIconLit, notifyTextLit, notifyNoDots, notifyNoTrack;
-    int       notifyNoHalo;
-    int       notifyDismissOK, notifyViewRestored, notifyExpiredOK;
-    int       notifyHIconLit, notifyNoFile, notifyCountdownOK;
-    int       notifyShown, notifyNoPersist;
-    /* --balloontest */
-    int       balloonHookOK, balloonTrayPid, balloonEvents0;
-    int       balloonFakeOK, balloonPlainIgnored, balloonSignalActive;
-    int       balloonTextOK, balloonSupp, balloonRewindOK;
-    int       balloonNoFile, balloonOffOK, balloonEvents;
-    int       balloonHits, balloonClassHits, balloonStyleHits;
-    int       balloonTextLen, balloonStage;
-    /* 本轮：间距 / 旧提示删除 / 滑块模式隐藏 play-reset */
-    int       notifyGapOK, notifyOldHintDiff;
-    int       sliderPlayHit, sliderResetHit, sliderRightLit;
 };
 
 #endif /* QISLAND_APP_H */

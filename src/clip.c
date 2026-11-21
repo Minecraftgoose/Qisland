@@ -161,8 +161,7 @@ void clip_shutdown(Clip *c, App *a)
         if (pRemove) pRemove(g_listenerHwnd);
     }
     c->detached = 1;
-    /* 只在确实有未保存改动时写盘：--dump / --diag / --cliptest 演示数据
-       走 clipboard_test.bin，绝不能把用户的真实历史覆盖成空 */
+    /* 只在确实有未保存改动时写盘，绝不把用户的真实历史覆盖成空 */
     if (c->dirty) clip_save(c, 1);
     if (c->u32) { FreeLibrary(c->u32); c->u32 = NULL; }
 }

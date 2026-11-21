@@ -80,8 +80,7 @@
 #define CD_DEFAULT_SEC  300
 #define CD_MAX_SEC      (24 * 3600 - 1)
 
-/* 卡片下标锚点：**只供历史诊断代码使用**，运行时判断一律走 cards_draw()。
-   在 cards[] 中间插卡后必须同步这三个值，否则 tests.c 的锚点会错位。
+/* 卡片下标锚点：少量只读判断（如便签光标）用，视图判定一律走 cards_draw()。
    当前表：0 计时器 / 1 日期时钟 / 2 便签 / 3 性能 / 4 大卡片 / 5 超大卡片 */
 #define NOTE_VIEW       2
 #define PERF_VIEW       3
@@ -201,6 +200,14 @@
 #define NOTIFY_MS       5000              /* 默认显示毫秒数；到点自动消失 */
 #define NOTIFY_VIEW_TAG  -1              /* 通知不是导航卡片，不占竖点/横点 */
 
+/* ---- 通知音效（0.3 起）----
+   assets\notice.mp3 随安装包释放，与 Qisland.exe 同级的 assets\ 目录里。
+   由 notify.c 用系统自带 MCI（winmm）异步播放，无需第三方解码库。
+   缺文件、无 MPEG 驱动、格式不支持时**一律静默跳过**，绝不影响通知本身，
+   也不弹任何错误框。MP3 是 Windows MCI 原生可播格式，不必转 WAV。 */
+#define NOTIFY_SOUND_FILE   L"notice.mp3"
+#define NOTIFY_SOUND_ALIAS  L"qisland_sfx"
+
 /* 通知卡片布局：图标区 / 文字区都用卡片宽高的比例，绘制与测试共用同一组宏。
    TEXT_X 必须明显大于 ICON_X + ICON_S*H/W，否则文字会贴到图标上。
    中卡片 480x130 下：图标右缘 = 24 + 54.6 = 78.6，文字起点 = 108 → 间隙 29.4px。 */
@@ -302,8 +309,8 @@
 #define BALLOON_APP_NAME        L"托盘消息"    /* 仅当标题读不到时的兜底，非来源 exe 名 */
 #define BALLOON_NO_TEXT         L"有新消息"    /* 读不到文本时只给信号，不编造正文 */
 /* 灵动岛本身的右键菜单已删除：不再有 MENU_VIEW0 / MENU_VIEW_LAST，
-   跳卡只靠滚轮、竖/横圆点与右键菜单以外的入口。cards_vdot/cards_anchor
-   仍被 ui.c 的竖点绘制和 tests.c 的历史诊断使用，函数本身保留。 */
+   跳卡只靠滚轮与竖/横圆点。cards_vdot 仍被 ui.c 的竖点绘制使用，
+   函数本身保留。 */
 
 /* ---- 设置页（唯一的超大卡片，DRAW_SETTINGS）----
    左右栏布局；所有比例相对**目标态标称尺寸** W0/H0，绘制与命中同源。

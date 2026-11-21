@@ -114,8 +114,7 @@ typedef struct {
 typedef struct {
     HWND          hwnd;          /* 主窗口：PostMessage 目标 */
     HWINEVENTHOOK hook;          /* SetWinEventHook 返回值 */
-    int           enabled;       /* --balloonoff 时关闭 */
-    int           testMode;      /* --balloontest：允许本进程假气泡 */
+    int           enabled;       /* 始终启用；保留字段供状态查询 */
     int           hookOk;
     DWORD         trayPid;       /* explorer / Shell_TrayWnd 的 pid，0 = 不过滤 */
 
@@ -134,11 +133,11 @@ typedef struct {
 void balloon_init(App *a);
 void balloon_shutdown(App *a);
 
-/* WndProc 里处理 WM_APP_BALLOON_SIGNAL；也可被 --balloontest 直接注入。
+/* WndProc 里处理 WM_APP_BALLOON_SIGNAL。
    event 仅作诊断，hwnd 是气泡窗口句柄，文本由主线程自己读（不跨线程传指针）。 */
 void balloon_on_signal(App *a, DWORD event, HWND hwnd);
 
-/* 只读查询，供 --diag / --balloontest */
+/* 只读状态查询 */
 int          balloon_enabled(const App *a);
 int          balloon_hook_ok(const App *a);
 int          balloon_events(const App *a);
@@ -154,13 +153,7 @@ int          balloon_last_title_icon(const App *a);
 const WCHAR *balloon_last_title(const App *a);
 DWORD        balloon_tray_pid(const App *a);
 
-/* --balloontest 专用 */
-void balloon_test_rewind(App *a, DWORD ms);
-/* 造一个「假气泡」窗口：类名含 tooltips_class32，可选 TTS_BALLOON 样式位，
-   窗口文本可被 WM_GETTEXT 读出。返回 1 成功，句柄写 *out。 */
-int  balloon_test_make(const WCHAR *text, int balloonStyle, HWND *out);
-void balloon_test_destroy(HWND hwnd);
-/* 读文本链路单独暴露给测试（主线程调用） */
+/* 读文本链路（主线程调用） */
 int  balloon_read_text(HWND hwnd, WCHAR *out, int cap);
 /* 读标题 szInfoTitle + 标题图标 uTitleBitmap（跨进程 TTM_GETTITLE） */
 int  balloon_read_title(HWND hwnd, WCHAR *out, int cap, UINT *iconOut);

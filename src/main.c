@@ -14,7 +14,6 @@
  *   balloon Win7 托盘气泡监听：SetWinEventHook(OUTOFCONTEXT) 旁观 + PostMessage 回主线程
  *   ui      仅图标布局 / 命中 / 交互 / 整帧渲染
  *   window  分层窗口 / Raw Input / 热键 / 菜单
- *   tests   导出 / 诊断 / 端到端验证
  */
 #include "app.h"
 #include "config.h"
@@ -33,7 +32,6 @@
 #include "tray.h"
 #include "input.h"
 #include "ui.h"
-#include "tests.h"
 
 DWORD qs_now(void) { return GetTickCount(); }
 double qs_clamp(double v, double a, double b) { return v < a ? a : (v > b ? b : v); }
@@ -50,32 +48,6 @@ void   qs_clock_a(char *out, size_t cap)
     WCHAR w[16];
     qs_clock_w(w, 16);
     WideCharToMultiByte(CP_UTF8, 0, w, -1, out, (int)cap, NULL, NULL);
-}
-
-static void parse_args(App *a, int argc, WCHAR **argv)
-{
-    for (int i = 1; i < argc; i++) {
-        if (!_wcsicmp(argv[i], L"--dump") && i + 1 < argc) {
-            char buf[512];
-            WideCharToMultiByte(CP_UTF8, 0, argv[i + 1], -1,
-                                buf, 512, NULL, NULL);
-            a->dump = _strdup(buf);
-            i++;
-        } else if (!_wcsicmp(argv[i], L"--bench")) a->bench = 1;
-        else if (!_wcsicmp(argv[i], L"--diag"))  a->diag = 1;
-        else if (!_wcsicmp(argv[i], L"--wheel")) a->wheelTest = 1;
-        else if (!_wcsicmp(argv[i], L"--gesture")) a->gestureTest = 1;
-        else if (!_wcsicmp(argv[i], L"--cdtest"))  a->cdTest = 1;
-        else if (!_wcsicmp(argv[i], L"--notetest")) a->noteTest = 1;
-        else if (!_wcsicmp(argv[i], L"--perftest")) a->perfTest = 1;
-        else if (!_wcsicmp(argv[i], L"--cliptest")) a->clipTest = 1;
-        else if (!_wcsicmp(argv[i], L"--notifytest")) a->notifyTest = 1;
-        else if (!_wcsicmp(argv[i], L"--balloontest")) a->balloonTest = 1;
-        else if (!_wcsicmp(argv[i], L"--balloonoff"))  a->balloonOff  = 1;
-        /* 旧开关保留别名，行为已改为气泡监听 */
-        else if (!_wcsicmp(argv[i], L"--imtest"))      a->balloonTest = 1;
-        else if (!_wcsicmp(argv[i], L"--imoff"))       a->balloonOff  = 1;
-    }
 }
 
 static int single_instance(void)
@@ -98,9 +70,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
 {
     static App app;
     App *a = &app;
-    int argc = 0;
-    WCHAR **argv;
-    DWORD startup;
     int active = 0;
     int swAnim = 0;           /* 设置页开关弹簧是否未收敛，并入帧驱动 */
 
@@ -109,9 +78,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     a->visible = 1;
     a->dirty = 1;
 
-    argv = CommandLineToArgvW(GetCommandLineW(), &argc);
-    parse_args(a, argc, argv);
-    if (single_instance()) { if (argv) LocalFree(argv); return 0; }
+    if (single_instance()) return 0;
 
     ui_init(&a->ui);
     tooltip_init(&a->tooltip);
@@ -139,45 +106,10 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     a->dirty = 0;
     ui_render(a);
 
-    if (a->dump) { tests_dump(a); goto cleanup; }
-    if (a->diag)  { tests_diag(a); goto cleanup; }
-
-    if (a->wheelTest || a->gestureTest || a->cdTest || a->noteTest ||
-        a->perfTest || a->clipTest || a->notifyTest || a->balloonTest) {
-        /* 测试态：先展开生成命中区 */
-        a->anim.expanded = 1; a->anim.exp = 1.0; a->anim.expV = 0.0;
-        a->hover = 1; a->dirty = 0;
-        ui_render(a);
-        if (a->wheelTest) {
-            const RECT *wr = ui_wheel_rect(a);
-            if (wr->right > wr->left) {
-                POINT p;
-                p.x = (wr->left + wr->right) / 2;
-                p.y = (wr->top + wr->bottom) / 2;
-                ClientToScreen(a->hwnd, &p);
-                SetCursorPos(p.x, p.y);
-            }
-        }
-        if (a->cdTest) {
-            /* 首帧就必须在卡片内，否则 ui_poll 判定「移开」会把卡片收起，
-               之后数字段命中表就退回岛尺寸了 */
-            RECT r = ui_hit_rect(a, H_NUM_M);
-            if (r.right > r.left) {
-                POINT p;
-                p.x = (r.left + r.right) / 2;
-                p.y = (r.top + r.bottom) / 2;
-                ClientToScreen(a->hwnd, &p);
-                SetCursorPos(p.x, p.y);
-            }
-        }
-    }
-
-    startup = qs_now();
-    a->testStart = startup;
     for (;;) {
         MSG msg;
         while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
-            if (msg.message == WM_QUIT) goto done;
+            if (msg.message == WM_QUIT) goto cleanup;
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
@@ -242,13 +174,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
                 }
             }
         }
-        tests_frame(a);
-        if (tests_should_stop(a)) break;
         Sleep(active ? 8 : 24);
     }
-
-done:
-    tests_finish(a);
 
 cleanup:
     input_shutdown(a);          /* 编辑中会先保存便签 */
@@ -262,8 +189,5 @@ cleanup:
     font_shutdown(&a->fonts);
     sys_shutdown(&a->sys);
     canvas_shutdown(&a->canvas);
-    free(a->dump);
-    a->dump = NULL;
-    if (argv) LocalFree(argv);
     return 0;
 }

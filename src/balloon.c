@@ -27,7 +27,6 @@
 /* 回调需要的极少量全局：不指向 App，不跨线程传字符串 */
 static HWND  g_target;
 static DWORD g_trayPid;
-static int   g_testMode;
 
 static int is_balloon_class(const WCHAR *cls)
 {
@@ -61,8 +60,7 @@ static void CALLBACK balloon_win_event(HWINEVENTHOOK hook, DWORD event,
     style = (LONG)GetWindowLongPtrW(hwnd, GWL_STYLE);
     if (!(style & BALLOON_TTS_BALLOON)) return;
 
-    /* 气泡由 explorer 显示；真机按 Shell_TrayWnd 的 pid 收窄，既降噪又防误报。
-       testMode 下 wine 没有 explorer，放宽为 0。 */
+    /* 气泡由 explorer 显示；真机按 Shell_TrayWnd 的 pid 收窄，既降噪又防误报。 */
     if (g_trayPid) {
         GetWindowThreadProcessId(hwnd, &pid);
         if (pid != g_trayPid) return;
@@ -119,7 +117,7 @@ int balloon_read_text(HWND hwnd, WCHAR *out, int cap)
      → ReadProcessMemory 读回结构与缓冲。
    兼容控件的两种实现：把标题拷进我们给的缓冲，或把 pszTitle 改成自己内部指针。
    全链路 SMTO_ABORTIFHUNG + 200ms 超时；任何一步失败都静默回退，不崩不卡。
-   同进程（--balloontest 假气泡）走本地路径，不需要 OpenProcess。 */
+   同进程窗口走本地路径，不需要 OpenProcess。 */
 int balloon_read_title(HWND hwnd, WCHAR *out, int cap, UINT *iconOut)
 {
     DWORD pid = 0, i;
@@ -307,34 +305,21 @@ void balloon_init(App *a)
 
     ZeroMemory(b, sizeof(*b));
     b->hwnd = a->hwnd;
-    b->testMode = a->balloonTest;
-    b->enabled = !a->balloonOff;
-    if (!b->enabled) return;
+    b->enabled = 1;
 
     g_target  = a->hwnd;
-    g_testMode = b->testMode;
 
     /* 官方允许按 idProcess 收窄：真机只收 explorer 的事件，开销极小。 */
     tray = FindWindowW(L"Shell_TrayWnd", NULL);
     if (tray) GetWindowThreadProcessId(tray, &b->trayPid);
-    g_trayPid = b->testMode ? 0 : b->trayPid;
+    g_trayPid = b->trayPid;
 
-    if (b->testMode) {
-        /* wine 没有 explorer / WinEvent 可能不投递：只收**本进程**事件，
-           且不加 WINEVENT_SKIPOWNPROCESS，好让假气泡能触发回调。 */
-        b->hook = SetWinEventHook((DWORD)EVENT_OBJECT_CREATE,
-                                  (DWORD)EVENT_OBJECT_SHOW,
-                                  NULL, balloon_win_event,
-                                  GetCurrentProcessId(), 0,
-                                  WINEVENT_OUTOFCONTEXT);
-    } else {
-        b->hook = SetWinEventHook((DWORD)EVENT_OBJECT_CREATE,
-                                  (DWORD)EVENT_OBJECT_SHOW,
-                                  NULL, balloon_win_event,
-                                  b->trayPid, 0,
-                                  WINEVENT_OUTOFCONTEXT |
-                                  WINEVENT_SKIPOWNPROCESS);
-    }
+    b->hook = SetWinEventHook((DWORD)EVENT_OBJECT_CREATE,
+                              (DWORD)EVENT_OBJECT_SHOW,
+                              NULL, balloon_win_event,
+                              b->trayPid, 0,
+                              WINEVENT_OUTOFCONTEXT |
+                              WINEVENT_SKIPOWNPROCESS);
     b->hookOk = (b->hook != NULL);
 }
 
@@ -349,53 +334,6 @@ void balloon_shutdown(App *a)
     b->hookOk = 0;
     g_target = NULL;
     g_trayPid = 0;
-    (void)g_testMode;
-}
-
-/* ---------------- --balloontest 辅助 ---------------- */
-static const WCHAR *kFakeClass = L"Qisland_tooltips_class32_test";
-static int g_fakeClassTried = 0;
-
-int balloon_test_make(const WCHAR *text, int balloonStyle, HWND *out)
-{
-    HINSTANCE inst = GetModuleHandleW(NULL);
-    WNDCLASSW wc;
-    HWND h;
-
-    if (!g_fakeClassTried) {
-        WNDCLASSW probe;
-        ZeroMemory(&probe, sizeof(probe));
-        if (!GetClassInfoW(inst, kFakeClass, &probe)) {
-            ZeroMemory(&wc, sizeof(wc));
-            wc.lpfnWndProc   = DefWindowProcW;
-            wc.hInstance     = inst;
-            wc.lpszClassName = kFakeClass;
-            RegisterClassW(&wc);
-        }
-        g_fakeClassTried = 1;
-    }
-    /* 类名含 tooltips_class32 子串，与真机过滤规则同源；
-       TTS_BALLOON 位直接放在 style 上，GetWindowLongPtr 能读到。 */
-    h = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_TOPMOST, kFakeClass, text,
-                        WS_POPUP | WS_VISIBLE |
-                        (balloonStyle ? (DWORD)BALLOON_TTS_BALLOON : 0),
-                        120, 120, 320, 90, NULL, NULL, inst, NULL);
-    if (h) SetWindowTextW(h, text);   /* DefWindowProc 保存，WM_GETTEXT 可读 */
-    if (out) *out = h;
-    return h != NULL;
-}
-
-void balloon_test_destroy(HWND hwnd)
-{
-    if (hwnd && IsWindow(hwnd)) DestroyWindow(hwnd);
-}
-
-void balloon_test_rewind(App *a, DWORD ms)
-{
-    Balloon *b = &a->balloon;
-    if (!b->testMode) return;
-    b->lastAt  = (b->lastAt  > ms) ? b->lastAt  - ms : 0;
-    b->lastAny = (b->lastAny > ms) ? b->lastAny - ms : 0;
 }
 
 /* ---------------- 只读查询 ---------------- */

@@ -7,16 +7,20 @@ rem Requires at runtime, in assets\ next to Qisland.exe:
 rem   fa-solid-900.ttf          (FA icons)
 rem   OPPO Sans 4.0.ttf         (global UI font, unmodified per its license)
 rem   OPPO Sans 4.0 License Notice.txt (license, must be kept)
+rem   notice.mp3                (notification sound, MCI/winmm; optional)
 setlocal
 cd /d "%~dp0"
 set CC=gcc
 set WINDRES=windres
-rem cmd.exe does NOT expand *.c, so list all 25 translation units explicitly
-rem (23 project + 2 vendored lunar library .c). Keep this list in sync.
+rem cmd.exe does NOT expand *.c, so list all 24 translation units explicitly
+rem (22 project + 2 vendored lunar library .c). Keep this list in sync.
+rem tests.c / tests.h were removed in 0.3: no test code ships in the product.
 rem settings.c uses the registry (HKCU Run) -> needs -ladvapi32.
 rem tray.c uses Shell_NotifyIconW -> shell32 already linked.
-set SRC=main.c window.c canvas.c font.c sys.c anim.c countdown.c note.c perf.c date.c lunar.c clip.c notify.c balloon.c tooltip.c settings.c about.c capsuleicon.c tray.c cards.c input.c ui.c tests.c vendor\lunar_date.c vendor\solar_term.c
-set LIBS=-luser32 -lgdi32 -lshell32 -lshlwapi -lole32 -loleaut32 -ladvapi32 -limm32 -lm
+rem notify.c uses mciSendStringW for notice.mp3 -> needs -lwinmm.
+rem CI reads SRC/LIBS from this file, so keep both lines as the single source.
+set SRC=main.c window.c canvas.c font.c sys.c anim.c countdown.c note.c perf.c date.c lunar.c clip.c notify.c balloon.c tooltip.c settings.c about.c capsuleicon.c tray.c cards.c input.c ui.c vendor\lunar_date.c vendor\solar_term.c
+set LIBS=-luser32 -lgdi32 -lshell32 -lshlwapi -lole32 -loleaut32 -ladvapi32 -limm32 -lwinmm -lm
 rem 程序图标：「中间黑」那张 qisland.ico 由 qisland.rc 编成 COFF 资源对象。
 %WINDRES% qisland.rc -O coff -o qisland_res.o
 if errorlevel 1 (

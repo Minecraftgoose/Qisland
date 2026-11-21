@@ -4,7 +4,7 @@
 ; 编译：makensis Qisland.nsi
 ;       makensis 默认把当前工作目录切到脚本所在目录（除非 /NOCD），
 ;       所以下面所有相对路径都以本文件所在目录为基准。
-; 产出：软件/Qisland-0.2-Setup.exe
+; 产出：软件/Qisland-0.3-Setup.exe
 ;
 ; 设计要点（用户要求：不做独立升级包，升级逻辑写进同一个安装包）：
 ;   .onInit 里检测旧版 → 比较版本 → 静默卸载旧版 → 清理旧卸载器与注册表
@@ -33,6 +33,10 @@
 ; 只对 **NSIS 安装过的旧版** 做状态迁移；历史 zip 解压版没有卸载注册表项，
 ; 视为全新安装，旧解压目录不会被改动（需用户自行删除）。
 ;
+; 0.3 沿用同一套升级分支（0.1/0.2 装过 → 0.3 安装）。
+; 0.3 新增运行时资源 assets\notice.mp3（通知音效），由下面的
+; File /r "${SRCDIR}\assets" 一并释放，卸载时随 assets\*.* 一起删除。
+;
 ; 0.2 是第一个会真正走升级分支的版本（0.1 装过 → 0.2 安装），
 ; 顺带修了三条只在真升级时才暴露的问题：
 ;   a) `Unicode true` 下 System::Call 的 `t` 是宽字符串，必须用
@@ -47,8 +51,8 @@
 !include "WordFunc.nsh"        ; ${VersionCompare}
 
 !define APPNAME      "Qisland"
-!define APPVERSION   "0.2"       ; 与 src/version.h 的 QI_VERSION_STR 一致
-!define APPVERSION4  "0.2.0.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
+!define APPVERSION   "0.3"       ; 与 src/version.h 的 QI_VERSION_STR 一致
+!define APPVERSION4  "0.3.0.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
 !define UNINSTKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Qisland"
 !define RUNKEY       "Software\Microsoft\Windows\CurrentVersion\Run"
 !define WNDCLASS     "QislandLayeredClass"

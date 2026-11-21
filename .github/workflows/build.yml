@@ -92,7 +92,7 @@ jobs:
           mkdir -p "$S/源码/src" "$S/源码/nsis" "$S/软件/Qisland"
           cp -a src/. "$S/源码/src/"
           cp -a nsis/. "$S/源码/nsis/"
-          cp -a assets/. "$S/软件/Qisland/assets/"
+          cp -a assets/. "$S/软件/Qisland/assets/"   # 含 0.3 的 notice.mp3
           cp README.md "$S/软件/Qisland/README.md"
           # NSIS 的 File 指令硬性要求 preview.png；仓库没有就用包内透明 PNG 兜底
           if [ -f preview.png ]; then
@@ -104,6 +104,7 @@ jobs:
           test -f "$S/源码/nsis/Qisland.nsi"
           test -f "$S/软件/Qisland/assets/fa-solid-900.ttf"
           test -f "$S/软件/Qisland/assets/OPPO Sans 4.0.ttf"
+          test -f "$S/软件/Qisland/assets/notice.mp3"
           test -f "$S/软件/Qisland/preview.png"
 
       # ---- 版本：只改 runner 上的工作副本，不回写仓库 ----

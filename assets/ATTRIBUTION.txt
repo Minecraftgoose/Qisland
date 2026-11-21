@@ -47,8 +47,22 @@ Files:    compiled into Qisland.exe as static tables (source package:
           src/vendor/huangli_data.h). Lookup logic re-implemented in pure C.
 No JavaScript runtime, no network requests, no data modification.
 
+
+[5] 通知音效 notice.mp3  —— 即时通知提示音（0.3 起）
+Included file: "notice.mp3"  (unmodified, 9,563 bytes)
+Format: MPEG-1 Layer III, 44.1 kHz, mono, ~0.52 s, with ID3v2.3 + ID3v1 tags.
+ID3 metadata: Title "Feather Tap Pip", Artist "noname", Year "2026".
+Source: provided by the project maintainer for this release.
+License: no separate license text or usage grant was supplied with the file.
+         Confirm the right to redistribute before any public distribution.
+Playback: Qisland calls the Windows MCI (winmm) on each notification.
+         A missing file or an unavailable MPEG driver is silently ignored,
+         so the notification itself always works. No decoder is bundled.
+
 ----------------------------------------------------------------
 Both fonts are loaded privately at runtime with AddFontResourceExW
 (FR_PRIVATE) and removed on shutdown. Neither is installed system-wide.
 Keep assets/ next to Qisland.exe; missing fonts fall back gracefully
 (OPPO Sans -> Segoe UI / Microsoft YaHei, FA -> geometric icons).
+The notification sound is optional in the same way: if assets/notice.mp3 is
+absent, notifications stay silent instead of failing.

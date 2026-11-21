@@ -1,6 +1,6 @@
 /* version.h — 软件版本的**唯一来源**
  *
- * 版本号 0.2。C 代码和 windres 资源脚本都包含本文件，
+ * 版本号 0.3。C 代码和 windres 资源脚本都包含本文件，
  * NSIS 脚本顶部也用同一串字面量（见 src/nsis/Qisland.nsi 的 APPVERSION）。
  * 改版本只改这里 + NSIS 顶部那一处，别在别处硬编码。
  *
@@ -10,11 +10,11 @@
 #ifndef QISLAND_VERSION_H
 #define QISLAND_VERSION_H
 
-#define QI_VERSION_STR  "0.2"
-#define QI_VERSION_NUM  0,2,0,0      /* VS_FIXEDFILEINFO / VIProductVersion 用 */
+#define QI_VERSION_STR  "0.3"
+#define QI_VERSION_NUM  0,3,0,0      /* VS_FIXEDFILEINFO / VIProductVersion 用 */
 
 #ifndef RC_INVOKED
-#define QI_VERSION_W    L"0.2"      /* 仅 C 代码使用 */
+#define QI_VERSION_W    L"0.3"      /* 仅 C 代码使用 */
 #endif
 
 #endif /* QISLAND_VERSION_H */

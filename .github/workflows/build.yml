@@ -70,6 +70,9 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
+          # MINGW64 已被 MSYS2 标记弃用；本项目要兼容 Win7（msvcrt），暂不迁 UCRT64。
+          # 这是 setup-msys2 官方提供的「已知悉并抑制警告」输入（v2.33.0+）。
+          suppress-deprecation-warnings: msystem-mingw64
           update: true
           install: >-
             mingw-w64-x86_64-gcc
@@ -132,19 +135,24 @@ jobs:
           ver, ver4, num4, pre = info
           release_tag = os.environ.get("INPUT_TAG", "").strip() or tag or ("v" + ver)
 
+          # Qisland.nsi 原本就是 UTF-8 with BOM（UTF8SIG）。NSIS 3.x 见到 BOM 会
+          # 自动按 UTF-8 解析，脚本里「软件」「源码」等中文路径与界面文字才不会乱码。
+          # 因此 makensis 不需要任何 /INPUTCHARSET 选项；但改版本时不能把 BOM 弄丢。
+          nsi_s = open(nsi, encoding="utf-8-sig").read()
           if ver != current:
               s = open(vh, encoding="utf-8").read()
               s = re.sub(r'(#define\s+QI_VERSION_STR\s+)"[^"]*"', lambda m: m.group(1) + '"' + ver + '"', s)
               s = re.sub(r'(#define\s+QI_VERSION_NUM\s+)[0-9, \t]+', lambda m: m.group(1) + num4 + "      ", s)
               s = re.sub(r'(#define\s+QI_VERSION_W\s+)L"[^"]*"', lambda m: m.group(1) + 'L"' + ver + '"', s)
               open(vh, "w", encoding="utf-8", newline="").write(s)
-              s = open(nsi, encoding="utf-8").read()
-              s = re.sub(r'(^\s*!define\s+APPVERSION\s+)"[^"]*"', lambda m: m.group(1) + '"' + ver + '"', s, flags=re.M)
-              s = re.sub(r'(^\s*!define\s+APPVERSION4\s+)"[^"]*"', lambda m: m.group(1) + '"' + ver4 + '"', s, flags=re.M)
-              open(nsi, "w", encoding="utf-8", newline="").write(s)
+              nsi_s = re.sub(r'(^\s*!define\s+APPVERSION\s+)"[^"]*"', lambda m: m.group(1) + '"' + ver + '"', nsi_s, flags=re.M)
+              nsi_s = re.sub(r'(^\s*!define\s+APPVERSION4\s+)"[^"]*"', lambda m: m.group(1) + '"' + ver4 + '"', nsi_s, flags=re.M)
               print("版本同步为", ver, "(来自 tag/输入)")
           else:
               print("版本保持", ver)
+          open(nsi, "w", encoding="utf-8-sig", newline="").write(nsi_s)
+          assert open(nsi, "rb").read(3) == b"\xef\xbb\xbf", "Qisland.nsi 的 UTF-8 BOM 丢了"
+          print("Qisland.nsi 已确认为 UTF8SIG")
 
           vals = {"VERSION": ver, "SETUP_NAME": f"Qisland-{ver}-Setup.exe",
                   "RELEASE_TAG": release_tag, "PRERELEASE": "true" if pre else "false"}
@@ -174,21 +182,28 @@ jobs:
           cp Qisland.exe "../../软件/Qisland/Qisland.exe"
           ls -l "../../软件/Qisland/Qisland.exe"
 
-      # ---- 打安装包：NSISDIR 指到 MSYS2 官方包数据目录，UTF-8 读脚本 ----
+      # ---- 打安装包 ----
+      # 坑：MSYS2 会把以 / 开头的 argv 当 POSIX 绝对路径转成 Windows 路径，
+      # 上次 /INPUTCHARSET 被转成 D:/a/_temp/msys64/INPUTCHARSET，
+      # makensis 于是报 "Can't open script ..." 并退出 1。
+      # 脚本自带 UTF-8 BOM，makensis 会自动按 UTF-8 读，根本不需要 /INPUTCHARSET；
+      # 所以这里只传脚本名（相对路径，不会被转换），并显式关闭全部 argv 转换做防御。
       - name: 生成 NSIS 安装包
         shell: msys2 {0}
         run: |
           set -euo pipefail
           command -v makensis
           test -f /mingw64/share/nsis/Include/MUI2.nsh
+          export MSYS2_ARG_CONV_EXCL='*'
           # NSISDIR 给的是 Windows 原生程序，禁止 MSYS2 再按 POSIX 路径列表转换
           export MSYS2_ENV_CONV_EXCL='NSISDIR'
           export NSISDIR="$(cygpath -w /mingw64/share/nsis)"
           cd "_release/Qisland/源码/nsis"
-          makensis /INPUTCHARSET UTF8 /OUTPUTCHARSET UTF8 Qisland.nsi
+          makensis Qisland.nsi
           test -s "../../软件/$SETUP_NAME"
           ls -l "../../软件/$SETUP_NAME"
-          cp "../../软件/$SETUP_NAME" "$GITHUB_WORKSPACE/$SETUP_NAME"
+          # GITHUB_WORKSPACE 是 D:\... 形式，先转成 MSYS2 的 POSIX 路径再给 cp
+          cp "../../软件/$SETUP_NAME" "$(cygpath -u "$GITHUB_WORKSPACE")/$SETUP_NAME"
 
       - name: 备份安装包
         uses: actions/upload-artifact@v4

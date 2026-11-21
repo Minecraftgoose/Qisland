@@ -16,7 +16,7 @@
 
 #include "common.h"
 
-#define PERF_HW_LINES   5
+#define PERF_HW_LINES   4       /* 用户要求：不写 C 盘大小和占用，删掉原本第 5 行 */
 #define PERF_STR        128
 
 typedef struct {

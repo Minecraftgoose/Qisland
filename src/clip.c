@@ -1,4 +1,4 @@
-/* clip.c — 粘贴板历史：监听、去重、写回、持久化、自绘列表
+/* clip.c — 剪贴板历史：监听、去重、写回、持久化、自绘列表
  *
  * 官方文档关键点都落在这里：
  *   · listener 用 AddClipboardFormatListener（Vista+，Win7 可用），
@@ -352,7 +352,10 @@ void clip_clear(Clip *c, App *a)
     if (a) a->dirty = 1;
 }
 
-/* ---------------- 布局：压成单行 + 按宽度截断 ---------------- */
+/* ---------------- 布局：压成单行 + 按宽度截断 ----------------
+   注意：传入的 box 已由 ui.c 用「目标态标称尺寸」算出，在同一张卡内恒定。
+   早期版本传的是动画中间态 box，展开弹簧每帧改一次 box.h/box.w，
+   px 跨整数跳变、sig 每帧失效、所有条目反复二分截断 → 文字抖动。 */
 static unsigned int clip_sig(const Clip *c, int px, double w)
 {
     unsigned int h = 2166136261u;
@@ -474,18 +477,22 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
     Canvas *cv = &a->canvas;
     int r, end, idx;
     double tx, ty, trackX, trackY, trackH, thumbH, thumbY;
+    /* 卡片永远水平居中画在 canvas 上，所以 canvas.W/2 就是卡片中心。
+       用户要求「剪贴板要居中，相对于卡片居中」：每条文字按自身宽度
+       相对这个中心居中（align=1），不再贴着内容框左缘。 */
+    double centerX = (double)a->canvas.W * 0.5;
 
     clip_layout(c, a, box);
     tx = c->areaX;
     ty = c->areaY;
 
-    canvas_set_clip(cv, (int)tx, (int)ty,
+    canvas_set_clip(cv, (int)(box.x + 2.0), (int)ty,
                     (int)(box.x + box.w - CLIP_PAD),
                     (int)(box.y + box.h - CLIP_PAD));
 
     /* 空态：只有一个极淡的 clipboard 图标，没有任何提示文字 */
     if (c->count == 0) {
-        double icx = tx + 12.0, icy = ty + c->lineH * 0.5;
+        double icx = centerX, icy = ty + c->lineH * 0.5;
         if (font_fa_ok(&a->fonts))
             font_draw_icon(&a->fonts, cv, FA_CLIPBOARD,
                            qs_iclamp((int)(c->px * 0.9), 16, 26), icx, icy, 1,
@@ -511,7 +518,7 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
         }
         if (c->lineLen[idx] > 0)
             font_draw_note(&a->fonts, cv, c->line[idx], c->px,
-                           tx, yy + c->lineH * 0.5, 0,
+                           centerX, yy + c->lineH * 0.5, 1,
                            lit ? ACCENT_R : INK_R,
                            lit ? ACCENT_G : INK_G,
                            lit ? ACCENT_B : INK_B,

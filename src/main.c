@@ -6,10 +6,12 @@
  *   sys     Core Audio 音量 / WMI + DDC-CI 亮度 / 启动进程
  *   anim    视图尺寸 / 展开弹簧
  *   countdown 倒计时状态机
+ *   date    日期时钟：带秒时钟 + 农历/干支/节气/周数，纯函数无状态
+ *   lunar   本地农历库封装：vendored 纯 C 库，同步查询，无网络/无线程
  *   perf    性能监测：GetSystemTimes / GlobalMemoryStatusEx / 磁盘 + 圆环绘制
- *   clip    粘贴板历史：AddClipboardFormatListener / CF_UNICODETEXT / 自绘列表
+ *   clip    剪贴板历史：AddClipboardFormatListener / CF_UNICODETEXT / 自绘列表
  *   notify  即时通知：内存态覆盖视图、HICON/FA 图标、程序名+详细信息、无持久化
- *   im      QQ/微信监听：微信 Shell Hook（主线程）+ QQ 后台轮询线程，PostMessage 回主线程
+ *   balloon Win7 托盘气泡监听：SetWinEventHook(OUTOFCONTEXT) 旁观 + PostMessage 回主线程
  *   ui      仅图标布局 / 命中 / 交互 / 整帧渲染
  *   window  分层窗口 / Raw Input / 热键 / 菜单
  *   tests   导出 / 诊断 / 端到端验证
@@ -25,8 +27,10 @@
 #include "note.h"
 #include "perf.h"
 #include "clip.h"
+#include "cards.h"
 #include "notify.h"
-#include "im.h"
+#include "balloon.h"
+#include "tray.h"
 #include "input.h"
 #include "ui.h"
 #include "tests.h"
@@ -66,8 +70,11 @@ static void parse_args(App *a, int argc, WCHAR **argv)
         else if (!_wcsicmp(argv[i], L"--perftest")) a->perfTest = 1;
         else if (!_wcsicmp(argv[i], L"--cliptest")) a->clipTest = 1;
         else if (!_wcsicmp(argv[i], L"--notifytest")) a->notifyTest = 1;
-        else if (!_wcsicmp(argv[i], L"--imtest"))     a->imTest = 1;
-        else if (!_wcsicmp(argv[i], L"--imoff"))      a->imOff = 1;
+        else if (!_wcsicmp(argv[i], L"--balloontest")) a->balloonTest = 1;
+        else if (!_wcsicmp(argv[i], L"--balloonoff"))  a->balloonOff  = 1;
+        /* 旧开关保留别名，行为已改为气泡监听 */
+        else if (!_wcsicmp(argv[i], L"--imtest"))      a->balloonTest = 1;
+        else if (!_wcsicmp(argv[i], L"--imoff"))       a->balloonOff  = 1;
     }
 }
 
@@ -95,6 +102,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     WCHAR **argv;
     DWORD startup;
     int active = 0;
+    int swAnim = 0;           /* 设置页开关弹簧是否未收敛，并入帧驱动 */
 
     (void)prev; (void)cmdline; (void)show;
     a->inst = inst;
@@ -106,6 +114,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     if (single_instance()) { if (argv) LocalFree(argv); return 0; }
 
     ui_init(&a->ui);
+    tooltip_init(&a->tooltip);
+    settings_init(&a->settings);   /* 读收起偏好 + 同步注册表自启动真值 */
     if (!window_init(a)) {
         MessageBoxW(NULL, L"Qisland: window init failed", APP_NAME, MB_OK | MB_ICONERROR);
         goto cleanup;
@@ -120,7 +130,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     perf_init(&a->perf);
     clip_init(&a->clip, a);       /* 需要 hwnd：注册剪贴板 listener */
     notify_init(&a->notify);
-    im_init(a);                 /* 需要 hwnd：注册 Shell Hook 窗口 + 起 QQ 轮询线程 */
+    balloon_init(a);            /* 需要 hwnd：注册 WinEvent 气泡监听（无后台线程） */
+    tray_init(a);               /* 需要 hwnd：系统托盘图标 + 右键菜单（NIM_ADD） */
     input_init(a);
 
     a->anim.lastTick = qs_now();
@@ -132,7 +143,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
     if (a->diag)  { tests_diag(a); goto cleanup; }
 
     if (a->wheelTest || a->gestureTest || a->cdTest || a->noteTest ||
-        a->perfTest || a->clipTest || a->notifyTest || a->imTest) {
+        a->perfTest || a->clipTest || a->notifyTest || a->balloonTest) {
         /* 测试态：先展开生成命中区 */
         a->anim.expanded = 1; a->anim.exp = 1.0; a->anim.expV = 0.0;
         a->hover = 1; a->dirty = 0;
@@ -177,6 +188,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
             if (dt > 0.05) dt = 0.05;
             a->anim.lastTick = now;
             anim_tick(&a->anim, dt, a->ui.view);
+            /* 设置页开关弹簧：和展开弹簧共用同一帧驱动，不设新定时器、
+               不建线程；收敛后返回 0，静止零重绘不变。 */
+            swAnim = settings_tick(&a->settings, dt);
             ui_poll(a);
             /* listener 不可用时按剪贴板序列号兜底；有 listener 时直接返回，
                不置脏、不产生任何重绘 */
@@ -186,15 +200,37 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
 
             /* 性能页展开时才采样；每秒一次，有新样本才置脏。
                静止 / 收起 / 其他视图一律不采样，零重绘策略不变。 */
-            if (a->visible && a->hover && a->ui.view == PERF_VIEW &&
+            if (a->visible && a->hover &&
+                cards_draw(a->ui.view) == DRAW_PERF &&
                 perf_tick(&a->perf, now))
                 a->dirty = 1;
+
+            /* 日期时钟页带秒：只有它展开且可见时才比较秒串，每秒置一次脏。
+               其它页面（含收起态）完全不进这段，静止零重绘策略不变。
+               用 cards_draw() 判定而非写死下标，以后插卡不用同步。
+               历法数据由 src/vendor/ 本地库同步提供，无请求、无缓存、
+               无 serial、无后台线程，不需要在这里做任何触发。 */
+            if (a->visible && a->anim.exp > 0.02 &&
+                !notify_active(&a->notify) &&
+                cards_draw(a->ui.view) == DRAW_DATE) {
+                SYSTEMTIME st;
+                char cs[12];
+                GetLocalTime(&st);
+                _snprintf(cs, (int)sizeof(cs), "%02d:%02d:%02d",
+                          st.wHour, st.wMinute, st.wSecond);
+                cs[sizeof(cs) - 1] = 0;
+                if (strcmp(cs, a->lastSecClock) != 0) {
+                    memcpy(a->lastSecClock, cs, sizeof(cs));
+                    a->dirty = 1;
+                }
+            }
+
 
             {
                 char c[16];
                 int changed, need;
                 qs_clock_a(c, sizeof(c));
-                active = anim_active(&a->anim, a->ui.view);
+                active = anim_active(&a->anim, a->ui.view) || swAnim;
                 changed = (strcmp(c, a->lastClock) != 0);
                 need = active || a->dirty || changed;
                 if (a->dirty) a->dirty = 0;
@@ -219,7 +255,8 @@ cleanup:
     note_shutdown(&a->note);
     clip_shutdown(&a->clip, a);
     /* 通知无持久化：退出什么都不用写，内存态随进程消失 */
-    im_shutdown(a);             /* 先停后台线程并反注册 Shell Hook */
+    balloon_shutdown(a);        /* UnhookWinEvent，退出前反注册 */
+    tray_shutdown(a);           /* 必须在 window_shutdown 之前：NIM_DELETE 需要 hwnd */
     perf_shutdown(&a->perf);
     window_shutdown(a);
     font_shutdown(&a->fonts);

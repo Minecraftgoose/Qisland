@@ -11,11 +11,11 @@
 #include "config.h"
 #include "icons.h"
 
-static HFONT make_ui_font(int px)
+static HFONT make_ui_font(int px, const WCHAR *face)
 {
     return CreateFontW(px, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                       ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, FONT_FACE);
+                       ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, face);
 }
 
 static int make_dib(int w, int h, HDC *dc, HBITMAP *bmp, void **bits)
@@ -39,17 +39,17 @@ static int make_dib(int w, int h, HDC *dc, HBITMAP *bmp, void **bits)
     return 1;
 }
 
-static void build_path(WCHAR *out, size_t cap)
+static void build_asset_path(WCHAR *out, size_t cap, const WCHAR *rel)
 {
     WCHAR mod[MAX_PATH];
     DWORD n;
     WCHAR *slash;
     n = GetModuleFileNameW(NULL, mod, MAX_PATH);
-    if (!n) { wcscpy(out, FA_FONT_FILE); return; }
+    if (!n) { wcsncpy(out, rel, cap - 1); out[cap - 1] = 0; return; }
     mod[n] = 0;
     slash = wcsrchr(mod, L'\\');
     if (slash) *(slash + 1) = 0;
-    _snwprintf(out, (int)cap, L"%s%s", mod, FA_FONT_FILE);
+    _snwprintf(out, (int)cap, L"%s%s", mod, rel);
     out[cap - 1] = 0;
 }
 
@@ -192,24 +192,59 @@ static int probe_face(FontSet *f, const WCHAR *face)
     return (lit > total / 40) && (center > lit / 8);
 }
 
+/* 探测指定家族是否真的能被 GDI 映射：CreateFontW 找不到时会静默换成
+   系统默认字体，GetTextFaceW 返回的实际名字就对不上，据此判定。
+   OPPO Sans 4.0 的 nameID=1/4 都是 'OPPO Sans 4.0'，直接比对即可。 */
+static int face_available(FontSet *f, const WCHAR *face)
+{
+    HFONT hf, old;
+    WCHAR got[LF_FACESIZE];
+    int ok;
+    hf = CreateFontW(24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                     DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                     ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, face);
+    if (!hf) return 0;
+    old = (HFONT)SelectObject(f->tmpDC, hf);
+    GetTextFaceW(f->tmpDC, LF_FACESIZE, got);
+    SelectObject(f->tmpDC, old);
+    DeleteObject(hf);
+    ok = (_wcsicmp(got, face) == 0);
+    return ok;
+}
+
 int font_init(FontSet *f, double u)
 {
     static const WCHAR *cands[2] = { FA_FACE_NAMEID1, FA_FACE_TYPO };
     ZeroMemory(f, sizeof(*f));
     f->u = u;
 
-    f->uiClock = make_ui_font((int)(20 * u + 0.5));
-    f->uiSmall = make_ui_font((int)(12 * u + 0.5));
-    f->uiMid   = make_ui_font((int)(16 * u + 0.5));
-    f->uiBig   = make_ui_font((int)(20 * u + 0.5));
+    /* DIB 要在任何探测之前建好：probe_face / face_available 都往它上面画 */
     if (!make_dib(FONT_TMP_W, FONT_TMP_H, &f->tmpDC, &f->tmpBmp, &f->tmpBits))
         return 0;
+
+    /* 两个私有字体：FA 图标 + OPPO Sans 4.0 全局正文。都不装系统。 */
+    build_asset_path(f->fontPath, MAX_PATH, FA_FONT_FILE);
+    build_asset_path(f->oppoPath, MAX_PATH, OPPO_FONT_FILE);
+    f->loaded     = AddFontResourceExW(f->fontPath, FR_PRIVATE, 0);
+    f->oppoLoaded = AddFontResourceExW(f->oppoPath, FR_PRIVATE, 0);
+
+    /* ---- 全局字体：成功用 OPPO Sans，失败回退系统字体 ---- */
+    wcscpy(f->textFace, FONT_FACE_FALLBACK);
+    wcscpy(f->cjkFace,  FONT_FACE_FALLBACK_CJK);
+    if (f->oppoLoaded > 0 && face_available(f, OPPO_FACE)) {
+        wcscpy(f->textFace, OPPO_FACE);
+        wcscpy(f->cjkFace,  OPPO_FACE);
+        f->oppoOK = 1;
+    }
+
+    f->uiClock = make_ui_font((int)(20 * u + 0.5), f->textFace);
+    f->uiSmall = make_ui_font((int)(12 * u + 0.5), f->textFace);
+    f->uiMid   = make_ui_font((int)(16 * u + 0.5), f->textFace);
+    f->uiBig   = make_ui_font((int)(20 * u + 0.5), f->textFace);
     if (!f->uiClock || !f->uiSmall || !f->uiMid || !f->uiBig) return 0;
 
-    build_path(f->fontPath, MAX_PATH);
-    f->loaded = AddFontResourceExW(f->fontPath, FR_PRIVATE, 0);
+    /* ---- FA 图标字体：与之前一致，两个候选家族依次试 ---- */
     wcscpy(f->face, FA_FACE_NAMEID1);
-
     if (f->loaded > 0) {
         for (int i = 0; i < 2; i++) {
             if (probe_face(f, cands[i])) {
@@ -235,6 +270,8 @@ void font_shutdown(FontSet *f)
     if (f->tmpDC)  DeleteDC(f->tmpDC);
     if (f->loaded > 0)
         RemoveFontResourceExW(f->fontPath, FR_PRIVATE, 0);
+    if (f->oppoLoaded > 0)
+        RemoveFontResourceExW(f->oppoPath, FR_PRIVATE, 0);
 }
 
 static void blit_mask(FontSet *f, Canvas *c, GlyphMask *m,
@@ -285,21 +322,21 @@ void font_draw_text(FontSet *f, Canvas *c, const WCHAR *s, int px,
                     double x, double y, int align,
                     int cr, int cg, int cb, double k)
 {
-    draw_text_face(f, c, s, px, 0, FONT_FACE, x, y, align, cr, cg, cb, k);
+    draw_text_face(f, c, s, px, 0, f->textFace, x, y, align, cr, cg, cb, k);
 }
 
 void font_draw_label(FontSet *f, Canvas *c, const WCHAR *s, int px,
                      double x, double y, int align,
                      int cr, int cg, int cb, double k)
 {
-    draw_text_face(f, c, s, px, 2, FONT_FACE_CJK, x, y, align, cr, cg, cb, k);
+    draw_text_face(f, c, s, px, 2, f->cjkFace, x, y, align, cr, cg, cb, k);
 }
 
 void font_draw_note(FontSet *f, Canvas *c, const WCHAR *s, int px,
                     double x, double y, int align,
                     int cr, int cg, int cb, double k)
 {
-    draw_text_face(f, c, s, px, 3, FONT_FACE_CJK, x, y, align, cr, cg, cb, k);
+    draw_text_face(f, c, s, px, 3, f->cjkFace, x, y, align, cr, cg, cb, k);
 }
 
 int font_measure(FontSet *f, const WCHAR *s, int len, int px, int kind)
@@ -314,7 +351,7 @@ int font_measure(FontSet *f, const WCHAR *s, int len, int px, int kind)
                                FALSE, FALSE, FALSE, DEFAULT_CHARSET,
                                OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-                               (kind == 3) ? FONT_FACE_CJK : FONT_FACE);
+                               (kind == 2 || kind == 3) ? f->cjkFace : f->textFace);
         if (!nf) return 0;
         if (f->measureFont) DeleteObject(f->measureFont);
         f->measureFont = nf;
@@ -326,5 +363,7 @@ int font_measure(FontSet *f, const WCHAR *s, int len, int px, int kind)
     return sz.cx;
 }
 
+int font_oppo_ok(const FontSet *f) { return f->oppoOK; }
+const WCHAR *font_text_face(const FontSet *f) { return f->textFace; }
 int font_fa_ok(const FontSet *f) { return f->faOK; }
 const WCHAR *font_fa_face(const FontSet *f) { return f->face; }

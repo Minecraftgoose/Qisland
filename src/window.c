@@ -17,7 +17,8 @@
 #include "input.h"
 #include "clip.h"
 #include "notify.h"
-#include "im.h"
+#include "balloon.h"
+#include "tray.h"
 
 #ifndef WM_CLIPBOARDUPDATE
 #define WM_CLIPBOARDUPDATE 0x031D
@@ -53,33 +54,9 @@ int window_text_cursor(const App *a, int cx, int cy)
             cy >= nb.y && cy < nb.y + nb.h);
 }
 
-static void popup_menu(App *a, int sx, int sy)
-{
-    HMENU m = CreatePopupMenu();
-    if (!m) return;
-    /* 菜单也不用文字：4 个圆点表示竖向锚点，几何符号表示隐藏/退出。
-       点数量、当前高亮点都由卡片表推导，以后加卡片不用改这里。 */
-    for (int i = 0; i < CARDS_VDOTS; i++) {
-        WCHAR lab[12];
-        for (int j = 0; j < CARDS_VDOTS; j++)
-            lab[j] = (j == i) ? L'\x25CF' : L'\x25CB';   /* ● / ○ */
-        lab[CARDS_VDOTS] = 0;
-        AppendMenuW(m, MF_STRING | (cards_vdot(a->ui.view) == i ? MF_CHECKED : 0),
-                    MENU_VIEW0 + i, lab);
-    }
-    AppendMenuW(m, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(m, MF_STRING, 1, L"\x2212");             /* − 隐藏 */
-    AppendMenuW(m, MF_STRING, 2, L"\x00D7");             /* × 退出 */
-    {
-        int cmd = TrackPopupMenu(m, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON,
-                                 sx, sy, 0, a->hwnd, NULL);
-        DestroyMenu(m);
-        if (cmd >= MENU_VIEW0 && cmd <= MENU_VIEW_LAST)
-            ui_set_view(a, cards_anchor(cmd - MENU_VIEW0));
-        else if (cmd == 1) window_hide(a);
-        else if (cmd == 2) PostQuitMessage(0);
-    }
-}
+/* 灵动岛本身的右键菜单**已整体删除**（本轮用户要求）。
+   原来这里有一个用 ●/○ 圆点跳卡 + − 隐藏 + × 退出的 popup_menu，
+   现在菜单只在系统托盘图标上，见 tray.c。右键点岛什么都不弹。 */
 
 void window_show(App *a)
 {
@@ -108,14 +85,10 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         if (input_message(a, hwnd, msg, wp, lp)) return 0;
     }
 
-    /* SHELLHOOK 的 ID 是 RegisterWindowMessage 运行时给的，不能做 case：
-       在 switch 之前统一识别。它不是全局钩子，不拦截任何输入。 */
-    if (im_shell_message(a, msg, wp, lp)) return 0;
-
     switch (msg) {
-    case WM_APP_IM_SIGNAL:
-        /* QQ 后台线程只送 (kind, pid)，字符串/图标全部由主线程取 */
-        im_on_signal(a, (int)wp, (DWORD)lp);
+    case WM_APP_BALLOON_SIGNAL:
+        /* WinEvent 回调只送 (event, HWND)；气泡文本由主线程自己读 */
+        balloon_on_signal(a, (DWORD)wp, (HWND)lp);
         return 0;
     case WM_SETCURSOR: {
         /* 官方要求：光标必须在这里「每次鼠标移动都重新 SetCursor」——
@@ -133,10 +106,16 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
     case WM_NCHITTEST: {
         POINT sp;
+        int inShape;
         sp.x = GET_X_LPARAM(lp);
         sp.y = GET_Y_LPARAM(lp);
         ScreenToClient(hwnd, &sp);
-        return canvas_alpha_at(&a->canvas, sp.x, sp.y) > 8
+        /* 悬停气泡会写到主形状之外的透明区。加目标态几何判定，
+           让形状外的气泡像素一律 HTTRANSPARENT，不吞桌面点击；
+           形状内仍用最终 alpha，保留抗锯齿边缘的软命中。 */
+        inShape = anim_inside_target(&a->anim, a->ui.view, a->u,
+                                     a->canvas.W, 0.0, sp.x, sp.y);
+        return (inShape && canvas_alpha_at(&a->canvas, sp.x, sp.y) > 8)
              ? HTCLIENT : HTTRANSPARENT;
     }
     case WM_MOUSEMOVE:
@@ -183,14 +162,15 @@ LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             if (a->cd.ended && !a->endNotified) ui_countdown_ended(a);
         }
         return 0;
-    case WM_RBUTTONUP: {
-        POINT p;
-        p.x = GET_X_LPARAM(lp);
-        p.y = GET_Y_LPARAM(lp);
-        ClientToScreen(hwnd, &p);
-        popup_menu(a, p.x, p.y);
+    case WM_APP_TRAY:
+        /* 托盘图标回调（NOTIFYICON_VERSION_4）：lParam 低字是事件，
+           右键 / 上下文菜单才弹托盘菜单。岛自身的右键菜单已删除。 */
+        tray_on_message(a, wp, lp);
         return 0;
-    }
+    case WM_RBUTTONUP:
+    case WM_CONTEXTMENU:
+        /* 不在岛上弹任何菜单；交给 DefWindowProc 走默认，不拦截桌面右键。 */
+        return 0;
     case WM_HOTKEY:
         if (wp == HOTKEY_ID) {
             if (a->visible) window_hide(a);
@@ -247,6 +227,10 @@ int window_init(App *a)
     wc.style = CS_DBLCLKS;
     wc.lpfnWndProc = window_proc;
     wc.hInstance = a->inst;
+    /* 「中间黑」那张是程序图标：exe 资源 + 窗口类大小图标同源。
+       windres 把 qisland.rc 编进 exe，ID 见 config.h 的 IDI_QISLAND。 */
+    wc.hIcon   = LoadIconW(a->inst, MAKEINTRESOURCEW(IDI_QISLAND));
+    wc.hIconSm = wc.hIcon;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.lpszClassName = WND_CLASS;
     RegisterClassExW(&wc);

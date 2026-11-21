@@ -1,0 +1,54 @@
+Qisland — third-party font attribution / 第三方字体署名
+================================================================
+
+[1] OPPO Sans 4.0  —— 全局正文与标签字体
+Copyright 2024 Guangdong OPPO Mobile Telecommunications Corp., Ltd.
+Included file: "OPPO Sans 4.0.ttf"  (unmodified, 22,741,096 bytes)
+License: OPPO Sans Fonts License Agreement
+         (full text in "OPPO Sans 4.0 License Notice.txt")
+Source: user-provided OPPO_Sans_4.0.zip
+
+NOTICE: Qisland uses OPPO Sans Fonts. / Qisland 使用了 OPPO Sans 字体。
+The font is bundled unmodified. It is not redistributed or sold on a
+stand-alone basis, and no modification was made to the font or any of
+its components, per the License Agreement.
+
+[2] Font Awesome Free 6.7.2  —— 图标字体
+Copyright (c) Fonticons, Inc. (https://fontawesome.com)
+
+Included file: fa-solid-900.ttf
+Source: https://mirrors.tencent.com/npm/@fortawesome/fontawesome-free/-/fontawesome-free-6.7.2.tgz
+Official docs: https://fontawesome.com/v6/docs/web/setup/host-yourself/webfonts
+
+License (see LICENSE.txt for full text):
+  Icons (SVG/JS)  : CC BY 4.0  - https://creativecommons.org/licenses/by/4.0/
+  Fonts (TTF/WOFF): SIL OFL 1.1 - https://scripts.sil.org/OFL
+  Code / metadata : MIT
+Reserved Font Name: "Font Awesome"
+
+Icon codepoints used by Qisland were taken from the official metadata file
+metadata/icons.yml in that package; see src/icons.h.
+
+Attribution: Font Awesome Free 6.7.2 by Fonticons, Inc., used under
+CC BY 4.0 (icons) / SIL OFL 1.1 (font). No modifications were made to the font.
+
+[3] lunar-calendar  —— 本地农历 / 24 节气库（纯 C）
+Upstream: https://github.com/iseemoon/lunar-calendar
+License:  Apache License, Version 2.0
+          (full text in "LICENSE-lunar-calendar.txt", modification list in
+           the source package's src/vendor/NOTICE.txt)
+Files:    compiled into Qisland.exe (src/vendor/lunar_date.c, solar_term.c)
+Covers 1900-2099 with exact per-year solar-term timestamps. No network use.
+
+[4] lunar-javascript  —— 每日宜忌通书数据表（仅数据，MIT）
+Upstream: https://github.com/6tail/lunar-javascript  (v1.7.7)
+License:  MIT License (full text in "LICENSE-MIT-lunar.txt")
+Files:    compiled into Qisland.exe as static tables (source package:
+          src/vendor/huangli_data.h). Lookup logic re-implemented in pure C.
+No JavaScript runtime, no network requests, no data modification.
+
+----------------------------------------------------------------
+Both fonts are loaded privately at runtime with AddFontResourceExW
+(FR_PRIVATE) and removed on shutdown. Neither is installed system-wide.
+Keep assets/ next to Qisland.exe; missing fonts fall back gracefully
+(OPPO Sans -> Segoe UI / Microsoft YaHei, FA -> geometric icons).

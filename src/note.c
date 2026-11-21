@@ -484,10 +484,34 @@ void note_set_editing(Note *n, int on)
     }
 }
 
-/* ---------------- 鼠标：点击定位 / 拖动框选 ---------------- */
-static void stb_coords(Note *n, NoteBox box, int x, int y, float *sx, float *sy)
+/* ---------------- 逐行居中 ----------------
+   用户要求「便签要居中，相对于卡片居中」。卡片永远水平居中画在 canvas 上，
+   所以 canvas.W/2 就是卡片中心。每行按自身宽度居中后的**左端 x**由这里给出：
+   绘制(align=1)、点击命中、光标、选区矩形全部调用它，保证严格同源，
+   不会出现「字看着在中间、点却落在别处」。 */
+static double note_line_x(const Note *n, const App *a, int L)
 {
-    *sx = (float)(x - box.x - NOTE_PAD);
+    FontSet *fonts = (FontSet *)n->fontPtr;
+    double cx = (double)a->canvas.W * 0.5;
+    int s, e, w = 0;
+    if (L < 0) L = 0;
+    if (L >= n->lineCount) L = n->lineCount - 1;
+    if (L < 0) return cx;
+    s = n->lineStart[L]; e = n->lineEnd[L];
+    if (fonts && e > s)
+        w = font_measure(fonts, n->text + s, e - s, n->px, 3);
+    return cx - (double)w * 0.5;
+}
+
+/* ---------------- 鼠标：点击定位 / 拖动框选 ---------------- */
+static void stb_coords(Note *n, const App *a, NoteBox box,
+                       int x, int y, float *sx, float *sy)
+{
+    int L = n->topLine + (int)((y - box.y - NOTE_PAD) / (double)n->lineH);
+    if (L < n->topLine) L = n->topLine;
+    if (L >= n->lineCount) L = n->lineCount - 1;
+    if (L < 0) L = 0;
+    *sx = (float)(x - note_line_x(n, a, L));
     /* stb 从全文第一行开始累加 baseline_y_delta，把已滚掉的行补回来 */
     *sy = (float)(y - box.y - NOTE_PAD) + (float)(n->topLine * n->lineH);
 }
@@ -496,7 +520,7 @@ void note_click(Note *n, const App *a, NoteBox box, int x, int y)
 {
     float sx, sy;
     note_ctx(n, a, box);
-    stb_coords(n, box, x, y, &sx, &sy);
+    stb_coords(n, a, box, x, y, &sx, &sy);
     stb_textedit_click(n, &n->stb, sx, sy);
     note_sync_scroll(n);
 }
@@ -505,7 +529,7 @@ void note_drag_to(Note *n, const App *a, NoteBox box, int x, int y)
 {
     float sx, sy;
     note_ctx(n, a, box);
-    stb_coords(n, box, x, y, &sx, &sy);
+    stb_coords(n, a, box, x, y, &sx, &sy);
     stb_textedit_drag(n, &n->stb, sx, sy);
     note_sync_scroll(n);
 }
@@ -526,7 +550,7 @@ int note_caret_xy(Note *n, const App *a, NoteBox box, int *x, int *y)
     int line;
     note_ctx(n, a, box);
     line = caret_line(n);
-    *x = (int)(box.x + NOTE_PAD + caret_col_width(n, a, line));
+    *x = (int)(note_line_x(n, a, line) + caret_col_width(n, a, line));
     *y = (int)(box.y + NOTE_PAD +
                (line - n->topLine) * n->lineH + n->lineH * 0.5);
     return line >= n->topLine && line < n->topLine + n->visLines;
@@ -537,7 +561,7 @@ int note_vis_lines(const Note *n)  { return n->visLines; }
 int note_overflow(const Note *n)   { return n->lineCount > n->visLines; }
 
 /* ---------------- 绘制 ---------------- */
-static void draw_selection(Note *n, App *a, double tx, double ty, double k)
+static void draw_selection(Note *n, App *a, double ty, double k)
 {
     Canvas *c = &a->canvas;
     FontSet *fonts = (FontSet *)n->fontPtr;
@@ -551,10 +575,11 @@ static void draw_selection(Note *n, App *a, double tx, double ty, double k)
     for (L = n->topLine; L < end; L++) {
         int s = n->lineStart[L], e = n->lineEnd[L];
         int p = lo > s ? lo : s, q = hi < e ? hi : e;
-        double x0, x1, yy;
+        double lx, x0, x1, yy;
         if (p >= q) continue;
-        x0 = tx + font_measure(fonts, n->text + s, p - s, n->px, 3);
-        x1 = tx + font_measure(fonts, n->text + s, q - s, n->px, 3);
+        lx = note_line_x(n, (const App *)a, L);
+        x0 = lx + font_measure(fonts, n->text + s, p - s, n->px, 3);
+        x1 = lx + font_measure(fonts, n->text + s, q - s, n->px, 3);
         if (x1 - x0 < 1.0) x1 = x0 + 1.0;
         yy = ty + (L - n->topLine) * n->lineH;
         canvas_round(c, x0, yy + 2.0, x1 - x0,
@@ -567,20 +592,22 @@ void note_draw(Note *n, App *a, NoteBox box, double k)
 {
     Canvas *c = &a->canvas;
     int L, end, cx, cy, vis;
-    double tx, ty, trackX, trackY, trackH, thumbH, thumbY;
+    double ty, trackX, trackY, trackH, thumbH, thumbY;
+    double centerX = (double)a->canvas.W * 0.5;   /* 卡片水平中心 */
     WCHAR line[NOTE_MAX + 1];
 
     note_ctx(n, a, box);
-    tx = box.x + NOTE_PAD;
     ty = box.y + NOTE_PAD;
 
-    canvas_set_clip(c, (int)tx, (int)ty,
+    /* 文字逐行居中后可能比内容框左缘更靠左，裁切左界放宽到内缘，
+       右界不变；这样长行居中不会被切掉半个字。 */
+    canvas_set_clip(c, (int)(box.x + 2.0), (int)ty,
                     (int)(box.x + box.w - NOTE_PAD),
                     (int)(box.y + box.h - NOTE_PAD));
 
     /* 空态：只有一个极淡的 pencil 图标，没有任何提示文字、没有输入框边框 */
     if (n->len == 0) {
-        double icx = tx + 10.0, icy = ty + n->lineH * 0.5;
+        double icx = centerX, icy = ty + n->lineH * 0.5;
         if (font_fa_ok(&a->fonts))
             font_draw_icon(&a->fonts, c, FA_PENCIL,
                            qs_iclamp((int)(n->px * 0.68), 14, 20), icx, icy, 1,
@@ -590,7 +617,7 @@ void note_draw(Note *n, App *a, NoteBox box, double k)
     }
 
     /* 选中指示先画，文字覆盖其上；只在编辑态出现，不编辑时不留高亮 */
-    if (n->editing) draw_selection(n, a, tx, ty, k);
+    if (n->editing) draw_selection(n, a, ty, k);
 
     end = n->topLine + n->visLines;
     if (end > n->lineCount) end = n->lineCount;
@@ -601,9 +628,9 @@ void note_draw(Note *n, App *a, NoteBox box, double k)
         memcpy(line, n->text + s, (size_t)cnt * sizeof(WCHAR));
         line[cnt] = 0;
         font_draw_note(&a->fonts, c, line, n->px,
-                       tx, ty + (L - n->topLine) * n->lineH +
+                       centerX, ty + (L - n->topLine) * n->lineH +
                            n->lineH * 0.5,
-                       0, INK_R, INK_G, INK_B, k * 0.92);
+                       1, INK_R, INK_G, INK_B, k * 0.92);
     }
 
     /* 光标：常显淡竖线，编辑态才画 */

@@ -224,9 +224,9 @@ static void sample(Perf *p)
 
     wcsncpy(p->hwLines[3], p->osName, PERF_STR - 1); p->hwLines[3][PERF_STR - 1] = 0;
 
-    _snwprintf(p->hwLines[4], PERF_STR, L"%s %.1f GB · 可用 %.1f GB",
-               p->drive, p->diskTotalGB, p->diskFreeGB);
-    p->hwLines[4][PERF_STR - 1] = 0;
+    /* 用户要求「性能监测不用写 C 盘大小和占用」：右侧硬件信息不再输出
+       系统盘容量 / 可用空间那一整行。磁盘占用率仍由第三个圆环显示
+       （那是用户最初点名的三环之一，不删）。采集照旧，只是不写出来。 */
 
     p->sampleCount++;
 }
@@ -372,10 +372,12 @@ void perf_draw(Perf *p, App *a, double W, double H, double k)
     double x0  = L + W * 0.112;
     double hx  = L + W * 0.615, hx1 = L + W * 0.972;
     double maxW = hx1 - hx;
-    int ringPx = qs_iclamp((int)(rad * 0.62), 12, 28);
-    int labelPx = qs_iclamp((int)(H * 0.092), 10, 18);
-    int titlePx = qs_iclamp((int)(H * 0.112), 12, 22);
-    int hwPx = qs_iclamp((int)(H * 0.095), 10, 18);
+    /* 用户要求「font size 放大一点」：环心数字 / 环下标签 / 页标题 /
+       硬件信息四档一起抬一档，clamp 上限同步放宽。 */
+    int ringPx = qs_iclamp((int)(rad * 0.70), 14, 32);
+    int labelPx = qs_iclamp((int)(H * 0.108), 12, 21);
+    int titlePx = qs_iclamp((int)(H * 0.128), 14, 26);
+    int hwPx = qs_iclamp((int)(H * 0.112), 12, 22);
     static const WCHAR *labels[3] = { L"CPU", L"内存", L"磁盘" };
     double vals[3];
     WCHAR num[16];
@@ -401,12 +403,13 @@ void perf_draw(Perf *p, App *a, double W, double H, double k)
                         DIM_R, DIM_G, DIM_B, k * 0.92);
     }
 
-    /* 右侧：标题 + 5 行硬件信息。本页放开文字政策。 */
+    /* 右侧：标题 + 4 行硬件信息（C 盘容量行已删）。本页放开文字政策。
+       少一行后把 4 行重新均布到 0.315H..0.825H，别挤在上半截。 */
     font_draw_label(f, c, L"性能监测", titlePx, hx, H * 0.145, 0,
                     ACCENT_R, ACCENT_G, ACCENT_B, k);
     for (i = 0; i < PERF_HW_LINES; i++) {
         WCHAR line[PERF_STR];
-        double y = H * 0.315 + (double)i * (H * 0.142);
+        double y = H * 0.315 + (double)i * (H * 0.170);
         fit_line(f, line, p->hwLines[i], hwPx, maxW);
         font_draw_label(f, c, line, hwPx, hx, y, 0,
                         DIM_R, DIM_G, DIM_B, k * 0.95);

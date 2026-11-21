@@ -1,4 +1,5 @@
-/* window.h — 分层窗口、DPI、Raw Input、热键、右键菜单、窗口过程 */
+/* window.h — 分层窗口、DPI、Raw Input、热键、窗口过程
+ * 注意：岛自身的右键菜单已删除；右键菜单只存在于系统托盘图标（见 tray.h）。 */
 #ifndef QISLAND_WINDOW_H
 #define QISLAND_WINDOW_H
 

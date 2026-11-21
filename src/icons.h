@@ -35,9 +35,9 @@
 #define FA_TRASH_CAN        0xF2ED  /* trash-can（清空历史，仅图标） */
 #define FA_CHECK            0xF00C  /* check（该条已回填，可直接粘贴） */
 #define FA_XMARK            0xF00D  /* xmark（通知卡片右上角关闭，仅图标） */
-/* 消息通知兜底图标：FA Free Solid 不含 weixin/qq 品牌字形，
+/* 消息通知兜底图标：FA Free Solid 不含品牌字形，
    优先用 notify_icon_from_file() 取软件自身 HICON，取不到才用这两个。 */
-#define FA_COMMENT_DOTS     0xF4AD  /* comment-dots（微信兜底） */
-#define FA_COMMENT          0xF075  /* comment（QQ 兜底） */
+#define FA_COMMENT_DOTS     0xF4AD  /* comment-dots（消息兜底） */
+#define FA_COMMENT          0xF075  /* comment（消息兜底） */
 
 #endif /* QISLAND_ICONS_H */

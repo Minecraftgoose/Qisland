@@ -3,9 +3,10 @@
  * 用户最终定稿：**大卡片要，超大卡片也要，但仍然只有一个横向组**。
  *
  *   竖①  计时器（中）                       GRP_V
- *   竖②  便签（中）                         GRP_V
- *   竖③  性能监测（中）← 同时是横向第 1 位   GRP_H slot 0（竖向阶段露面）
- *   竖④  大卡片     ← 同时是横向第 2 位     GRP_H slot 1 / default
+ *   竖②  日期时钟（中）                      GRP_V
+ *   竖③  便签（中）                          GRP_V
+ *   竖④  性能监测（中）← 同时是横向第 1 位    GRP_H slot 0（竖向阶段露面）
+ *   竖⑤  大卡片     ← 同时是横向第 2 位      GRP_H slot 1 / default
  *
  *   ── 唯一一条横向（3 点）：性能 → 大卡片 → 超大卡片 ──
  *                                      横1      横2        横3 = 最后一点
@@ -14,11 +15,15 @@
  *   · 「大卡片我要，超大也要」             → 两个尺寸档各一张，都在表里
  *   · 「只有一个横向」                     → 仍只有 GRP_H 一个横向组
  *   · 「横向最后一个点是超大卡片」         → slot2 / TIER_HUGE
- *   · 「竖向第四个就是横向第二个」         → vdot3 锚点 = slot1 的大卡片
- *   · 4 个竖点、往下滚 = 下一个卡片       → 不变
+ *   · 加卡就加点（用户明确没锁死 4 个）   → 竖点 4 → 5
+ *   · 往下滚 = 下一个卡片                  → 不变
  *
  * 已删除：big2/3/4（多加的大卡）、huge0/2（多加的超大卡）、第二个横向组 GRP_U、
- * 所有留空卡。全表 5 张卡。
+ * 所有留空卡。全表 6 张卡（第二张中卡片 = 日期时钟，插在便签之前）。
+ * 新卡独占 vdot=1：竖点随之变成 5 个；横排仍是 3 个点、最后一点仍是超大卡。
+ * 大卡片与超大卡片共用竖⑤，进入横向阶段后竖列整列不画、改画横排 3 个点。
+ * 加卡片 = 往 cards[] 里插一行；若插在中间，记得同步 config.h 的
+ * NOTE_VIEW / PERF_VIEW / CLIP_VIEW 三个诊断锚点。
  *
  * 每张卡带 tier（尺寸档）/ draw（渲染器）/ group（V 竖向 / H 横向）
  * / slot（组内序号）/ vdot（对应哪个竖点）/ isDefault（跨组进入时的落点）。
@@ -34,13 +39,16 @@
 typedef enum { TIER_MID = 0, TIER_BIG = 1, TIER_HUGE = 2 } CardTier;
 
 /* 渲染器：EMPTY = 只有卡片形状，内容先留空；
-   CLIP = 粘贴板历史（第一个大卡片） */
+   CLIP = 剪贴板历史（第一个大卡片）；
+   SETTINGS = 设置页（唯一的超大卡片，左右栏「通用 / 关于」） */
 typedef enum {
     DRAW_TIMER = 0,
     DRAW_NOTE  = 1,
     DRAW_PERF  = 2,
     DRAW_EMPTY = 3,
-    DRAW_CLIP  = 4
+    DRAW_CLIP  = 4,
+    DRAW_DATE  = 5,
+    DRAW_SETTINGS = 6
 } CardDraw;
 
 /* 组：V=竖向导航区；H=**唯一**的横向组。
@@ -57,7 +65,7 @@ typedef struct {
     int         isDefault;  /* 跨组进入时的落点 */
 } CardDef;
 
-#define CARDS_VDOTS     4        /* 竖向指示点：5 → 4 */
+#define CARDS_VDOTS     5        /* 竖向指示点：加卡即加点，4 → 5 */
 #define CARDS_MAX       64       /* 表容量上限；以后加卡片别超这个，超了改一行 */
 
 int        cards_count(void);

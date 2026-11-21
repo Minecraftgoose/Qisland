@@ -1,0 +1,40 @@
+# Qisland — 仓库根 .gitignore（由源码包内 gitignore 模板整理）
+
+# 构建产物：exe / Setup 由 CI 生成并发布到 Release，不入库
+*.exe
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.res
+*.pdb
+*.ilk
+*.exp
+*.map
+
+# CI 临时组装目录与发行产物
+_release/
+Qisland-*-Setup.exe
+
+# 运行时生成的数据（明文，含敏感内容，绝不入库）
+note.txt
+clipboard.bin
+clipboard_test.bin
+settings.bin
+
+# 自测与诊断输出
+diag.txt
+bench.txt
+wheel.txt
+gesture.txt
+cdtest.txt
+notetest.txt
+perftest.txt
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

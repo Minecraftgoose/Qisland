@@ -1,20 +1,25 @@
 /* cards.c — 卡片注册表（唯一一处定义「有哪些卡片」）
  *
- * 定稿：**5 张卡、一个竖向区、唯一一条横向（3 个点）**。
+ * 定稿：**6 张卡、5 个竖点、一个竖向区、唯一一条横向（3 个点）**。
  *   idx 0  timer   MID  V / vdot0              竖①
- *   idx 1  note    MID  V / vdot1              竖②
- *   idx 2  perf    MID  H / slot0 / vdot2      竖③，同时是横向第 1 位
+ *   idx 1  date    MID  V / vdot1              竖②
+ *                  ← 本轮新增：带秒时钟 + 农历/干支/节气/周数等一整组日期
+ *   idx 2  note    MID  V / vdot2              竖③
+ *   idx 3  perf    MID  H / slot0 / vdot3      竖④，同时是横向第 1 位
  *                （GRP_H 但 vdot=2，只在竖向阶段露面 → 显示竖列点）
- *   idx 3  big1    BIG  H / slot1 / vdot3 / default / DRAW_CLIP
- *                竖④，同时是横向第 2 位 ←「竖向第四个就是横向第二个」
- *                第一张大卡片 = 粘贴板历史记录
- *   idx 4  huge1   HUGE H / slot2 / vdot3
- *                横向第 3 位 = **最后一点**，唯一的超大卡片
+ *   idx 4  big1    BIG  H / slot1 / vdot4 / default / DRAW_CLIP
+ *                竖⑤，同时是横向第 2 位
+ *                第一张大卡片 = 剪贴板历史记录
+ *   idx 5  huge1   HUGE H / slot2 / vdot4 / DRAW_SETTINGS
+ *                横向第 3 位 = **最后一点**，唯一的超大卡片 = 设置页
  *
  * 用户把前两版的「只留大卡」/「只留超大卡」合并成「两个都要」，
  * 但「只有一个横向」的约束保留：两张卡同在 GRP_H，靠 slot 排在同一排
  * 横点里，不拆成第二个横向组。
- * 已删除：big2/3/4、huge0/2、整个 GRP_U、所有 DRAW_EMPTY 留空卡。
+ * 已删除：big2/3/4、huge0/2、整个 GRP_U。
+ * 超大卡片先按用户要求留空（DRAW_EMPTY）过一版，本轮改成设置页：
+ * 左右栏「通用 / 关于」，通用页三个收起条件 + 开机自启动；关于页留空。
+ * 底部横排圆点（全局导航指示器）仍照常绘制，不进 cards[] 内容。
  *
  * 以后要加卡片：在下面 cards[] 里插一行，填好 tier / draw / group /
  * slot / vdot 即可。导航、竖点、尺寸、诊断表全部由这张表推导，
@@ -26,10 +31,11 @@
 static const CardDef cards[] = {
     /* idx  id       tier        draw        group   slot  vdot  default */
     { "timer",  TIER_MID,   DRAW_TIMER, GRP_V,   0,    0,    0 },
-    { "note",   TIER_MID,   DRAW_NOTE,  GRP_V,   0,    1,    0 },
-    { "perf",   TIER_MID,   DRAW_PERF,  GRP_H,   0,    2,    0 },
-    { "big1",   TIER_BIG,   DRAW_CLIP,  GRP_H,   1,    3,    1 },  /* 竖④ = 横2，粘贴板历史 */
-    { "huge1",  TIER_HUGE,  DRAW_TIMER, GRP_H,   2,    3,    0 },  /* 横3 = 最后一点 */
+    { "date",   TIER_MID,   DRAW_DATE,  GRP_V,   0,    1,    0 },  /* 第二张中卡片 */
+    { "note",   TIER_MID,   DRAW_NOTE,  GRP_V,   0,    2,    0 },
+    { "perf",   TIER_MID,   DRAW_PERF,  GRP_H,   0,    3,    0 },
+    { "big1",   TIER_BIG,   DRAW_CLIP,  GRP_H,   1,    4,    1 },  /* 竖⑤ = 横2，剪贴板历史 */
+    { "huge1",  TIER_HUGE,  DRAW_SETTINGS, GRP_H, 2,    4,    0 }, /* 横3 = 最后一点，设置页 */
 };
 
 static int card_n(void)

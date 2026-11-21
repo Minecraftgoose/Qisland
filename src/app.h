@@ -15,7 +15,9 @@
 #include "perf.h"
 #include "clip.h"
 #include "notify.h"
-#include "im.h"
+#include "balloon.h"
+#include "tooltip.h"
+#include "settings.h"
 #include "ui.h"
 
 struct App {
@@ -34,10 +36,13 @@ struct App {
     Perf      perf;
     Clip      clip;
     Notify    notify;
-    Im        im;
+    Balloon   balloon;
+    Tooltip   tooltip;
+    Settings  settings;
     Ui        ui;
 
     int       visible, dirty, hover, prevDown, drag, rawOK;
+    int       trayOK;           /* 托盘图标已 NIM_ADD，退出时要 NIM_DELETE */
     /* 按下→松开期间记录，用来区分「单击」与「按住拖动」 */
     int       pressId, pressX, pressY, pressMoved;
     int       noteSel;          /* 左键按住便签文本区：正在拖动框选 */
@@ -47,11 +52,13 @@ struct App {
     int       wheelAccum;
     DWORD     lastRender, lastWheel, renderCount;
     char      lastClock[16];
+    char      lastSecClock[12];   /* 日期时钟页带秒，只在它展开时比较 */
+
 
     /* 测试/诊断开关（命令行） */
     int       bench, diag, wheelTest, gestureTest, cdTest, noteTest, perfTest;
     int       clipTest, notifyTest;
-    int       imOff, imTest;
+    int       balloonOff, balloonTest;
     char     *dump;
     DWORD     testStart, testElapsed;
     int       wheelSent, wheelBefore, wheelLog[12], wheelLogN;
@@ -77,14 +84,17 @@ struct App {
     /* --notifytest：即时通知系统端到端 */
     int       notifyStage, notifyActive0, notifyActive1, notifyMidSize;
     int       notifyIconLit, notifyTextLit, notifyNoDots, notifyNoTrack;
+    int       notifyNoHalo;
     int       notifyDismissOK, notifyViewRestored, notifyExpiredOK;
     int       notifyHIconLit, notifyNoFile, notifyCountdownOK;
     int       notifyShown, notifyNoPersist;
-    /* --imtest：QQ/微信监听端到端 */
-    int       imStage, imHookOK, imThread0, imThreadJoined;
-    int       imWxActive, imWxApp, imSupp, imQQActive, imQQApp;
-    int       imShellMsgs, imShellHits, imWinPolls, imTrayPolls;
-    int       imNoFile, imOffOK;
+    /* --balloontest */
+    int       balloonHookOK, balloonTrayPid, balloonEvents0;
+    int       balloonFakeOK, balloonPlainIgnored, balloonSignalActive;
+    int       balloonTextOK, balloonSupp, balloonRewindOK;
+    int       balloonNoFile, balloonOffOK, balloonEvents;
+    int       balloonHits, balloonClassHits, balloonStyleHits;
+    int       balloonTextLen, balloonStage;
     /* 本轮：间距 / 旧提示删除 / 滑块模式隐藏 play-reset */
     int       notifyGapOK, notifyOldHintDiff;
     int       sliderPlayHit, sliderResetHit, sliderRightLit;

@@ -1,4 +1,4 @@
-/* clip.h — 第一个大卡片：粘贴板历史记录
+/* clip.h — 第一个大卡片：剪贴板历史记录
  *
  * 官方依据（先读文档再动手）：
  *   · AddClipboardFormatListener / RemoveClipboardFormatListener / WM_CLIPBOARDUPDATE

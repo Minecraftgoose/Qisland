@@ -105,7 +105,8 @@ void notify_dismiss(Notify *n, App *a)
     n->dismissed++;
     /* 旧版「00:00:00 + bell 常驻提示」已删除：通知就是唯一的提醒形态。
        点掉或过期都清掉内部一次性触发标记，回到完全正常的计时器状态，
-       不会残留任何 bell 图标 / 淡圆底 / 数字变色。 */
+       不会残留任何 bell 图标 / 淡圆底 / 数字变色。
+       通知卡片本身也不给图标加圆形容器底。 */
     ui_clear_end(a);
     a->anim.overrideMid = 0;
     a->ui.view = n->savedView;
@@ -207,10 +208,8 @@ void notify_draw(Notify *n, App *a, double W, double H, double k)
     iconX = L + W * NOTIFY_ICON_X;
     iconY = H * 0.5 - iconH * 0.5;
 
-    /* 极淡圆底：给图标一个容器感（软件图标/HICON 也一样），不抢文字 */
-    canvas_disc(c, iconX + iconW * 0.5, iconY + iconH * 0.5,
-               iconH * 0.62, HOVER_BG_R, HOVER_BG_G, HOVER_BG_B, k * 0.42);
-
+    /* 图标直接落在卡片底色上：不画任何圆形容器 / 灰白圆底。
+       用户明确要求「图标底下不要加那个灰白的圆」。 */
     if (n->faIcon && font_fa_ok(f)) {
         int fpx = qs_iclamp((int)(iconH * 0.86), 18, 64);
         font_draw_icon(f, c, n->faIcon, fpx,
@@ -219,9 +218,7 @@ void notify_draw(Notify *n, App *a, double W, double H, double k)
     } else if (n->hIcon) {
         draw_hicon(c, n->hIcon, iconX, iconY, iconW, iconH, k);
     } else {
-        /* 两者都没有：极淡圆点占位，不留空白 */
-        canvas_disc(c, iconX + iconW * 0.5, iconY + iconH * 0.5,
-                    iconH * 0.20, DIM_R, DIM_G, DIM_B, k * 0.5);
+        /* 两者都没有：左侧留空，不画圆点占位（通知区不出现任何圆形底） */
     }
 
     /* 右侧文本区：程序名（大）/ 详细信息（小灰）。
@@ -237,7 +234,7 @@ void notify_draw(Notify *n, App *a, double W, double H, double k)
         font_draw_label(f, c, n->appName, pxName, tx, cy1, 0,
                         INK_R, INK_G, INK_B, k);
 
-    /* 详细信息按文本区宽度截断补省略号（与粘贴板历史同一套思路） */
+    /* 详细信息按文本区宽度截断补省略号（与剪贴板历史同一套思路） */
     if (n->detail[0]) {
         int len = (int)wcslen(n->detail), take = len;
         WCHAR ell[] = L"\x2026";

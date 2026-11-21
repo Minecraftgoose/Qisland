@@ -1,0 +1,42 @@
+/* qisland.rc — 程序图标 + 文件版本资源（唯一的资源脚本）
+ *
+ * 素材：用户「圆形图标文件包」中**中间黑**的那张（src/qisland.ico）。
+ * 由 build.bat 用 windres 编成 qisland_res.o 再链接进 exe，
+ * 资源管理器 / Alt+Tab / 窗口类图标 / 系统托盘图标都用它。
+ * ID 与 config.h 的 IDI_QISLAND 一致。
+ *
+ * 版本号唯一来源：version.h（QI_VERSION_STR / QI_VERSION_NUM = 0.2）。
+ * VS_VERSION_INFO 让「文件属性 → 详细信息」和安装包的版本信息一致。
+ */
+#include "version.h"
+
+1 ICON "qisland.ico"
+
+VS_VERSION_INFO VERSIONINFO
+    FILEVERSION     QI_VERSION_NUM
+    PRODUCTVERSION  QI_VERSION_NUM
+    FILEFLAGSMASK   0x3f
+    FILEFLAGS       0x0
+    FILEOS          0x40004
+    FILETYPE        0x1
+    FILESUBTYPE     0x0
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName",       "Qisland"
+            VALUE "FileDescription",   "Qisland Dynamic Island"
+            VALUE "FileVersion",       QI_VERSION_STR
+            VALUE "InternalName",      "Qisland"
+            VALUE "LegalCopyright",    "See LICENSE files in assets"
+            VALUE "OriginalFilename",  "Qisland.exe"
+            VALUE "ProductName",       "Qisland"
+            VALUE "ProductVersion",    QI_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

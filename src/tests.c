@@ -11,7 +11,7 @@
 #include "perf.h"
 #include "clip.h"
 #include "notify.h"
-#include "im.h"
+#include "balloon.h"
 #include "icons.h"
 #include "cards.h"
 #include "input.h"
@@ -164,7 +164,7 @@ void tests_dump(App *a)
         _snprintf(p, 512, "%s_perf_warn.bmp", a->dump); snap(a, PERF_VIEW, 0, p);
         a->perf.cpu = sc; a->perf.mem = sm; a->perf.disk = sd;
     }
-    /* 第一个大卡片 = 粘贴板历史：空态 / 列表 / 选中回填 / 滚动四张真实像素。
+    /* 第一个大卡片 = 剪贴板历史：空态 / 列表 / 选中回填 / 滚动四张真实像素。
        演示数据写到 clipboard_test.bin，不碰用户真实历史。 */
     {
         static const WCHAR *demo[] = {
@@ -215,16 +215,17 @@ void tests_dump(App *a)
         }
         notify_dismiss(&a->notify, a);
     }
-    /* QQ / 微信即时消息通知：与倒计时通知完全同一张卡片，
-       左侧软件 HICON（取不到回退 FA），右侧程序名 + 详细信息。 */
+    /* Win7 托盘气泡通知：与倒计时通知完全同一张卡片，左侧 FA / HICON，
+       右侧「托盘消息」+ 读到的气泡正文（读不到则「有新消息」）。 */
     {
         HICON ico = notify_icon_from_file(L"notepad.exe");
-        if (!ico) ico = (HICON)LoadIconW(NULL, IDI_APPLICATION);
-        notify_show_icon(&a->notify, a, ico, L"微信", L"有新消息", 60000);
-        _snprintf(p, 512, "%s_im_wechat.bmp", a->dump);
+        notify_show_fa(&a->notify, a, FA_COMMENT_DOTS, L"托盘消息",
+                       L"这是 Win7 托盘气泡消息 · 测试正文", 60000);
+        _snprintf(p, 512, "%s_balloon_fa.bmp", a->dump);
         snap(a, 0, 0, p);
-        notify_show_icon(&a->notify, a, ico, L"QQ", L"有新消息", 60000);
-        _snprintf(p, 512, "%s_im_qq.bmp", a->dump);
+        if (!ico) ico = (HICON)LoadIconW(NULL, IDI_APPLICATION);
+        notify_show_icon(&a->notify, a, ico, L"托盘消息", L"有新消息", 60000);
+        _snprintf(p, 512, "%s_balloon_icon.bmp", a->dump);
         snap(a, 0, 0, p);
         if (ico != (HICON)LoadIconW(NULL, IDI_APPLICATION)) DestroyIcon(ico);
         notify_dismiss(&a->notify, a);
@@ -291,7 +292,7 @@ static int vstrip_lit_px(const App *a, RECT wr)
     return total;
 }
 
-/* 粘贴板历史：内容区亮像素（文字/图标）、内容区下方溢出像素、
+/* 剪贴板历史：内容区亮像素（文字/图标）、内容区下方溢出像素、
    右缘极淡短滑块亮像素。用来证明文字被 canvas_set_clip 裁住、
    且滚动指示只在溢出时出现。 */
 static int clip_lit_px(const App *a, ClipBox cb)
@@ -369,6 +370,52 @@ static int notify_no_file(void)
     if (h == INVALID_HANDLE_VALUE) return 1;   /* 没有任何通知文件 */
     FindClose(h);
     return 0;
+}
+
+/* 通知图标「圆形底」检测：以图标中心为圆心的环带
+   [0.44*iconH, 0.60*iconH]。旧版在这里画半径 0.62*iconH 的极淡圆底，
+   环带必然一片亮；删掉圆底后，环带内既没有图标笔画（FA 字形半宽约
+   0.26*iconH）也没有容器 → 亮像素必须为 0。 */
+static int notify_halo_lit_px(const App *a)
+{
+    double W = a->anim.curW * a->u, H = a->anim.curH * a->u;
+    double L = (double)(a->canvas.W - W) * 0.5;
+    double iw = H * NOTIFY_ICON_S;
+    double cx = L + W * NOTIFY_ICON_X + iw * 0.5;
+    double cy = H * 0.5;
+    double r0 = iw * 0.44, r1 = iw * 0.60;
+    int x, y, total = 0;
+    for (y = (int)(cy - r1 - 1); y <= (int)(cy + r1 + 1); y++)
+        for (x = (int)(cx - r1 - 1); x <= (int)(cx + r1 + 1); x++) {
+            double dx = x - cx, dy = y - cy, d = dx * dx + dy * dy;
+            if (d >= r0 * r0 && d <= r1 * r1 && lit_at(a, x, y)) total++;
+        }
+    return total;
+}
+
+/* 超大卡片留空检查：内容区（排除底部横点带）亮像素应为 0、横排点仍要画、
+   命中表只有滚轮竖条 + 横点两个、卡片中心不命中任何内容控件。 */
+static void huge_empty_check(App *a, int *contentLit, int *dotsLit,
+                             int *hitN, int *centerHit)
+{
+    int sv = a->ui.view, sm = a->ui.mode, sh = a->ui.hoverSeg;
+    int v = cards_count() - 1;
+    double W, H, r, L;
+    a->ui.view = v; a->ui.mode = 0; a->ui.hoverSeg = -1;
+    anim_view_size(&a->anim, v, &W, &H, &r);
+    a->anim.curW = W; a->anim.curH = H; a->anim.curR = r;
+    a->anim.expanded = 1; a->anim.exp = 1.0; a->anim.expV = 0.0;
+    ui_render(a);
+    W = a->anim.curW * a->u; H = a->anim.curH * a->u;
+    L = (double)(a->canvas.W - W) * 0.5;
+    *contentLit = rect_lit_px(a, L + W * 0.06, H * 0.05,
+                              L + W * 0.94, H * 0.82);
+    *dotsLit = hdots_lit_px(a, a->ui.hdotsRect,
+                            cards_group_count(GRP_H), NULL);
+    *hitN = a->ui.hitN;
+    *centerHit = ui_hit(a, (int)(L + W * 0.5), (int)(H * 0.45));
+    a->ui.view = sv; a->ui.mode = sm; a->ui.hoverSeg = sh;
+    a->dirty = 1;
 }
 
 /* 通知图标右缘 → 文字起点的间隙（设备像素）。绘制与断言共用 config.h 宏。 */
@@ -515,7 +562,8 @@ void tests_diag(App *a)
     /* ---- 大卡片 + 超大卡片共存，但仍**只有一个横向组** ----
        横1 性能 / 横2 大卡片 / 横3 超大卡片（最后一点）；
        竖④ 锚点 = slot1 大卡片 =「横向第二个」。
-       big2/3/4、huge0/2、第二个横向组 GRP_U、所有留空卡全部删除。 */
+       big2/3/4、huge0/2、第二个横向组 GRP_U 删除；用户本轮要求
+       「超大卡片留空」→ huge1 改为 DRAW_EMPTY，因此 nEmpty 应为 1。 */
     {
         int nH = cards_group_count(GRP_H);
         int d  = cards_group_default(GRP_H);
@@ -533,7 +581,8 @@ void tests_diag(App *a)
                                 cards_group_by_order(1) == GRP_H);
             int okThreeDots  = (nH == 3);
             int okOneBig     = (nBig == 1);
-            int okOneHuge    = (nHuge == 1 && nEmpty == 0);
+            int okOneHuge    = (nHuge == 1 && nEmpty == 1 &&
+                                cards_draw(last) == DRAW_EMPTY);
             int okBigBefore  = (cards_tier(3) == TIER_BIG &&
                                 cards_tier(4) == TIER_HUGE);
             int okLastIsHuge = (last == 4 && cards_tier(last) == TIER_HUGE);
@@ -551,7 +600,7 @@ void tests_diag(App *a)
 
             fprintf(f, "single_hgroup_policy: ONE horizontal group only, BOTH a BIG "
                        "card and a HUGE card live in the SAME 3-dot row; "
-                       "LAST dot = HUGE; extra big/huge cards + GRP_U deleted\n");
+                       "LAST dot = HUGE (content EMPTY); extra cards + GRP_U deleted\n");
             fprintf(f, "single_hgroup: count=%d order=V/H ok=%d "
                        "is_hgroup H=%d V=%d\n",
                     cards_hgroup_count(), okOrder,
@@ -1245,7 +1294,7 @@ void tests_diag(App *a)
         a->ui.view = v0; a->dirty = 1;
     }
 
-    /* ---- 第一个大卡片：粘贴板历史 ---- */
+    /* ---- 第一个大卡片：剪贴板历史 ---- */
     {
         static const WCHAR *demo[] = {
             L"https://learn.microsoft.com/windows/win32/dataxchg/clipboard",
@@ -1311,6 +1360,8 @@ void tests_diag(App *a)
                 (int)(fabs(w - MID_W) < 0.01 && fabs(h - MID_H) < 0.01));
         fprintf(f, "notify_pixels icon_lit=%d text_lit=%d dots_lit=%d "
                    "(expect >0 / >0 / 0)\n", iconLit, textLit, dotsLit);
+        fprintf(f, "notify_icon_halo_lit_px=%d (expect 0: 图标底下不再画灰白圆底 / 圆形容器)\n",
+                notify_halo_lit_px(a));
         fprintf(f, "notify_no_file=%d (expect 1)\n", notify_no_file());
         fprintf(f, "notify_countdown_hook: ui_countdown_ended -> notify_show_fa"
                    "(FA_BELL, Qisland, 倒计时已结束)\n");
@@ -1319,6 +1370,14 @@ void tests_diag(App *a)
                 notify_gap_px(a), NOTIFY_GAP_MIN * a->u,
                 (int)(notify_gap_px(a) >= NOTIFY_GAP_MIN * a->u));
         notify_dismiss(&a->notify, a);
+        /* 通知关闭后再测超大卡留空：否则 notify_draw 会覆盖整个卡片 */
+        {
+            int cl = 0, dl = 0, hn = 0, ch = 0;
+            huge_empty_check(a, &cl, &dl, &hn, &ch);
+            fprintf(f, "huge_empty: content_lit=%d hdots_lit=%d hitN=%d center_hit=%d "
+                       "(expect 0 / >0 / 2 / 0: 超大卡只留形状与横排点，无任何内容控件)\n",
+                    cl, dl, hn, ch);
+        }
         a->ui.view = v1; a->dirty = 1;
     }
 
@@ -1338,36 +1397,44 @@ void tests_diag(App *a)
         a->ui.view = cards_anchor(0); a->ui.mode = 0; a->dirty = 1;
     }
 
-    /* ---- QQ / 微信即时消息监听 ---- */
+    /* ---- Win7 托盘气泡消息监听 ---- */
     {
-        fprintf(f, "im_arch: WeChat = RegisterShellHookWindow + HSHELL_FLASH (main UI thread); "
-                   "QQ = worker thread (500ms) + PostMessage(WM_APP_IM_SIGNAL)\n");
-        fprintf(f, "im_official: RegisterShellHookWindow HSHELL_FLASH documented (lParam=flashing HWND), "
-                   "Win2000+/SDK XP SP1+; RegisterWindowMessageW same string -> same ID, Win2000+; "
-                   "QueryFullProcessImageNameW Vista+ (PROCESS_QUERY_LIMITED_INFORMATION)\n");
-        fprintf(f, "im_limit: Shell_NotifyIcon(NIM_MODIFY) sends NO broadcast to other apps -> "
-                   "QQ tray icons can only be polled; Win7 tray toolbar is UNDOCUMENTED explorer internals\n");
-        fprintf(f, "im_limit2: signal only, no sender / no content; FlashWindowEx taskbar flashing "
-                   "also yields HSHELL_FLASH, so QQ is accepted there too\n");
-        fprintf(f, "im_fallback: worker thread ALSO enumerates WeChat windows (n increase + title hash) "
-                   "because NIM_MODIFY tray flashes never produce HSHELL_FLASH\n");
-        fprintf(f, "im_thread_safety: worker thread touches no App/Canvas/Ui/Notify field; "
-                   "signal carries only (kind,pid), no cross-thread pointer; no global hook installed\n");
-        fprintf(f, "im_api_exported=%d (user32 RegisterShellHookWindow)\n",
-                im_shell_api_present(a));
-        fprintf(f, "im_enabled=%d shell_msg=%u hook_registered=%d thread_running=%d "
-                   "shell_msgs=%d hits wx/qq/qqflash=%d/%d/%d\n",
-                im_enabled(a), (unsigned)im_shell_msg(a), im_hook_ok(a),
-                im_thread_running(a), im_shell_msgs(a),
-                im_hits(a, IM_SIG_WECHAT), im_hits(a, IM_SIG_QQ),
-                im_hits(a, IM_SIG_QQFLASH));
-        fprintf(f, "im_worker win_polls=%ld tray_polls=%ld tray_ok=%ld "
-                   "(tray_ok=0 is expected on wine / no real explorer tray)\n",
-                im_win_polls(a), im_tray_polls(a), im_tray_ok(a));
-        fprintf(f, "im_cooldown_ms=%d global_gap_ms=%d poll_ms=%d "
-                   "send_timeout_ms=%d (SendMessageTimeout + SMTO_ABORTIFHUNG)\n",
-                IM_COOLDOWN_MS, IM_GLOBAL_GAP_MS, IM_POLL_MS, IM_SEND_TIMEOUT_MS);
-        fprintf(f, "im_switch: --imoff disables all listening; --imtest injects both signal paths\n");
+        fprintf(f, "balloon_verdict: CAN receive, but only by OBSERVING explorer's balloon "
+                   "window; NIF_INFO callbacks are NOT broadcast to 3rd parties\n");
+        fprintf(f, "balloon_official: NOTIFYICONDATA NIF_INFO (szInfo/szInfoTitle/dwInfoFlags/"
+                   "uTimeout); NIN_BALLOONSHOW / NIN_BALLOONTIMEOUT / NIN_BALLOONUSERCLICK "
+                   "go ONLY to the icon owner's hWnd (Shell_NotifyIcon NIM_MODIFY, XP+)\n");
+        fprintf(f, "balloon_hook: SetWinEventHook(EVENT_OBJECT_CREATE 0x8000 / "
+                   "EVENT_OBJECT_SHOW 0x8002, WINEVENT_OUTOFCONTEXT | "
+                   "WINEVENT_SKIPOWNPROCESS); caller thread MUST have a message loop; "
+                   "async but sequential; Win2000+\n");
+        fprintf(f, "balloon_winevent: WinEvents/Active Accessibility - client must call "
+                   "SetWinEventHook to receive events; AccessibleObjectFromEvent can fetch "
+                   "IAccessible inside the callback\n");
+        fprintf(f, "balloon_filter: hwnd + OBJID_WINDOW/CHILDID_SELF -> class "
+                   "tooltips_class32 -> TTS_BALLOON 0x40 (official Tooltip Styles 5.80) "
+                   "-> explorer pid; callback touches NO App/Canvas/Ui/Notify, "
+                   "only PostMessage(HWND)\n");
+        fprintf(f, "balloon_text: WM_GETTEXTLENGTH + WM_GETTEXT via "
+                   "SendMessageTimeout(SMTO_ABORTIFHUNG, %dms), GetWindowText fallback; "
+                   "UIA_ToolTipOpenedEventId(20000) + get_CurrentName is a Phase-2 upgrade\n",
+                BALLOON_SEND_TIMEOUT_MS);
+        fprintf(f, "balloon_uia: UIA_ToolTipOpenedEventId = 20000 (min client Windows XP); "
+                   "AddAutomationEventHandler(root, TreeScope_Subtree) official sample\n");
+        fprintf(f, "balloon_limit: only STANDARD NIF_INFO tray balloons; self-drawn popups / "
+                   "in-app toasts / Win10 Toast are invisible. No sender/process name "
+                   "(balloon belongs to explorer), never fabricated\n");
+        fprintf(f, "balloon_safety: NO global hook chain (unlike the WH_MOUSE_LL freeze), "
+                   "NO worker thread, NO polling, NO explorer memory reads, NO dirty flag\n");
+        fprintf(f, "balloon_enabled=%d hook_ok=%d tray_pid=%lu events=%d hits=%d "
+                   "suppressed=%d class_hits=%d style_hits=%d text_len=%d\n",
+                balloon_enabled(a), balloon_hook_ok(a),
+                (unsigned long)balloon_tray_pid(a), balloon_events(a),
+                balloon_hits(a), balloon_suppressed(a),
+                balloon_class_hits(a), balloon_style_hits(a), balloon_text_len(a));
+        fprintf(f, "balloon_last_text=%ls\n", balloon_last_text(a));
+        fprintf(f, "balloon_switch: --balloonoff disables listening; --balloontest injects a "
+                   "fake tooltip balloon (old --imoff/--imtest kept as aliases)\n");
     }
     fclose(f);
 }
@@ -1803,7 +1870,7 @@ static void perf_frame(App *a)
     }
 }
 
-/* ---- --cliptest：粘贴板历史端到端 ----
+/* ---- --cliptest：剪贴板历史端到端 ----
    覆盖：去重 / 空白跳过 / 旧条目提到顶部 / 上限 / 滚动 / 真实写回系统剪贴板 /
    自写回通知不增殖 / 点击行回填 / 持久化 roundtrip / 像素裁切与滚动指示。
    演示数据一律走 clipboard_test.bin，不碰用户真实历史。 */
@@ -1950,6 +2017,7 @@ static void notify_frame(App *a)
         a->notifyIconLit = ic;
         a->notifyTextLit = tx;
         a->notifyNoDots = (notify_dots_lit_px(a) == 0);
+        a->notifyNoHalo = (notify_halo_lit_px(a) == 0);
         a->notifyNoFile = notify_no_file();
         a->notifyNoPersist = (a->ui.wheelRect.right == 0 &&
                               a->ui.hdotsRect.right == 0);
@@ -2031,79 +2099,76 @@ static void notify_frame(App *a)
     a->notifyStage = want;
 }
 
-/* ---- --imtest：QQ / 微信监听端到端 ----
-   覆盖：Shell Hook 注册、后台线程跑起来、微信信号弹通知、
-   同来源去抖、QQ 信号弹通知、真实 SHELLHOOK 消息链路、
-   软件 HICON / 进程名、线程干净退出、不写盘。
-   wine 里没有真实 QQ/微信，用 testMode 把本进程 pid 当作目标注入，
-   走的是与真机完全相同的 PostMessage → WndProc → im_on_signal 链路。 */
-static void im_frame(App *a)
+/* ---- --balloontest：Win7 托盘气泡监听端到端 ----
+   覆盖：WinEvent hook 注册 / 假气泡窗口（tooltips_class32 + TTS_BALLOON）/
+   普通 tooltip 被过滤 / 真实 WinEvent 投递（wine 可能不实现）/ 同一条
+   PostMessage → WndProc → balloon_on_signal → 读文本 → notify 链路 /
+   去抖 / 拨回冷却后再弹 / 不写盘。原即时消息专属监听已整体删除。 */
+static void balloon_frame(App *a)
 {
     int want;
+    static HWND fakeBalloon = NULL, plainTip = NULL;
     a->testElapsed = qs_now() - a->testStart;
     want = (int)(a->testElapsed / 350);
-    if (want > 8) want = 8;
-    if (want <= a->imStage) return;
+    if (want > 7) want = 7;
+    if (want <= a->balloonStage) return;
     switch (want) {
     case 1:
-        a->imHookOK = im_hook_ok(a);
-        a->imThread0 = im_thread_running(a);
-        a->imWinPolls = (int)im_win_polls(a);
-        a->imTrayPolls = (int)im_tray_polls(a);
+        a->balloonHookOK   = balloon_hook_ok(a);
+        a->balloonTrayPid  = (int)balloon_tray_pid(a);
+        a->balloonEvents0  = balloon_events(a);
+        /* 普通 tooltip（无 TTS_BALLOON 样式）不应触发任何通知 */
+        balloon_test_make(L"普通提示（不是气泡）", 0, &plainTip);
         break;
     case 2:
-        /* 微信：PostMessage 到主线程 WndProc，完整走一遍 */
-        PostMessageW(a->hwnd, WM_APP_IM_SIGNAL,
-                     (WPARAM)IM_SIG_WECHAT, (LPARAM)GetCurrentProcessId());
+        a->balloonPlainIgnored = !notify_active(&a->notify);
+        /* 真气泡：类名含 tooltips_class32 子串 + TTS_BALLOON 位 + 可读文本 */
+        a->balloonFakeOK = balloon_test_make(
+            L"这是 Win7 托盘气泡消息 · 测试正文", 1, &fakeBalloon);
         break;
     case 3:
-        a->imWxActive = notify_active(&a->notify);
-        a->imWxApp = (wcscmp(notify_app_name(&a->notify), L"微信") == 0 &&
-                      wcscmp(im_last_app(a), L"微信") == 0);
-        /* 立刻再发一次：同一来源冷却期内应被丢弃 */
-        PostMessageW(a->hwnd, WM_APP_IM_SIGNAL,
-                     (WPARAM)IM_SIG_WECHAT, (LPARAM)GetCurrentProcessId());
+        /* WinEvent 是异步排队的：真机能投递，wine 若未实现则用
+           PostMessage 直接注入同一条 WndProc → balloon_on_signal 链路。 */
+        a->balloonEvents = balloon_events(a);
+        if (a->balloonEvents <= a->balloonEvents0 && fakeBalloon)
+            PostMessageW(a->hwnd, WM_APP_BALLOON_SIGNAL,
+                         (WPARAM)EVENT_OBJECT_SHOW, (LPARAM)fakeBalloon);
         break;
-    case 4:
-        a->imSupp = im_suppressed(a);
-        notify_dismiss(&a->notify, a);
-        im_test_rewind(a, IM_COOLDOWN_MS + 1000);
-        break;
-    case 5:
-        /* QQ：后台线程发出的信号形态（kind=IM_SIG_QQ, pid） */
-        PostMessageW(a->hwnd, WM_APP_IM_SIGNAL,
-                     (WPARAM)IM_SIG_QQ, (LPARAM)GetCurrentProcessId());
-        break;
-    case 6:
-        a->imQQActive = notify_active(&a->notify);
-        a->imQQApp = (wcscmp(notify_app_name(&a->notify), L"QQ") == 0 &&
-                      wcscmp(im_last_app(a), L"QQ") == 0);
-        notify_dismiss(&a->notify, a);
-        im_test_rewind(a, IM_COOLDOWN_MS + 1000);
-        break;
-    case 7: {
-        /* 真实 SHELLHOOK 消息：注册 ID + HSHELL_FLASH + HWND。
-           testMode 下本进程 pid 被当作微信，验证判定与通知链路。 */
-        UINT sm = im_shell_msg(a);
-        if (sm)
-            PostMessageW(a->hwnd, sm, (WPARAM)(DWORD)HSHELL_FLASH,
-                         (LPARAM)a->hwnd);
-        a->imShellMsgs = im_shell_msgs(a);
+    case 4: {
+        WCHAR buf[BALLOON_TEXT_MAX + 1];
+        int n = balloon_read_text(fakeBalloon, buf, BALLOON_TEXT_MAX + 1);
+        a->balloonSignalActive = notify_active(&a->notify);
+        a->balloonTextOK  = (n > 0 && wcsstr(buf, L"托盘气泡") != NULL);
+        a->balloonTextLen = balloon_text_len(a);
+        /* 冷却期内再注入一次 → 必须被压制 */
+        if (fakeBalloon)
+            PostMessageW(a->hwnd, WM_APP_BALLOON_SIGNAL,
+                         (WPARAM)EVENT_OBJECT_CREATE, (LPARAM)fakeBalloon);
         break;
     }
-    case 8:
-        a->imShellMsgs = im_shell_msgs(a);
-        a->imShellHits = im_hits(a, IM_SIG_WECHAT);
-        notify_dismiss(&a->notify, a);
-        a->imThreadJoined = im_join_for_test(a);   /* 真实验证线程干净退出 */
-        a->imNoFile = notify_no_file();
-        a->imWinPolls = (int)im_win_polls(a);
-        a->imTrayPolls = (int)im_tray_polls(a);
-        a->imOffOK = im_enabled(a);                 /* --imoff 单独验证 */
+    case 5:
+        a->balloonSupp = balloon_suppressed(a);
+        balloon_test_rewind(a, BALLOON_COOLDOWN_MS + 1000);
+        if (fakeBalloon)
+            PostMessageW(a->hwnd, WM_APP_BALLOON_SIGNAL,
+                         (WPARAM)EVENT_OBJECT_SHOW, (LPARAM)fakeBalloon);
+        break;
+    case 6:
+        a->balloonRewindOK = (balloon_hits(a) >= 2);
+        a->balloonNoFile   = notify_no_file();
+        a->balloonOffOK    = balloon_enabled(a);   /* --balloonoff 单独验证 */
+        break;
+    case 7:
+        a->balloonEvents     = balloon_events(a);
+        a->balloonHits       = balloon_hits(a);
+        a->balloonClassHits  = balloon_class_hits(a);
+        a->balloonStyleHits  = balloon_style_hits(a);
+        balloon_test_destroy(fakeBalloon); fakeBalloon = NULL;
+        balloon_test_destroy(plainTip);   plainTip   = NULL;
         break;
     default: break;
     }
-    a->imStage = want;
+    a->balloonStage = want;
 }
 
 void tests_frame(App *a)
@@ -2163,7 +2228,7 @@ void tests_frame(App *a)
     if (a->perfTest) perf_frame(a);
     if (a->clipTest) clip_frame(a);
     if (a->notifyTest) notify_frame(a);
-    if (a->imTest) im_frame(a);
+    if (a->balloonTest) balloon_frame(a);
 }
 
 int tests_should_stop(const App *a)
@@ -2176,43 +2241,50 @@ int tests_should_stop(const App *a)
     if (a->perfTest && a->perfStage >= 3 && a->testElapsed >= 2000) return 1;
     if (a->clipTest && a->clipStage >= 8 && a->testElapsed >= 2700) return 1;
     if (a->notifyTest && a->notifyStage >= 8 && a->testElapsed >= 2700) return 1;
-    if (a->imTest && a->imStage >= 8 && a->testElapsed >= 3000) return 1;
+    if (a->balloonTest && a->balloonStage >= 7 && a->testElapsed >= 3000) return 1;
     if ((a->bench || a->wheelTest || a->gestureTest || a->cdTest ||
-         a->noteTest || a->perfTest || a->clipTest || a->notifyTest || a->imTest) &&
+         a->noteTest || a->perfTest || a->clipTest || a->notifyTest || a->balloonTest) &&
         a->testElapsed >= 8000) return 1;
     return 0;
 }
 
 void tests_finish(App *a)
 {
-    if (a->imTest) {
-        FILE *f = fopen("imtest.txt", "w");
+    if (a->balloonTest) {
+        FILE *f = fopen("balloontest.txt", "w");
         if (f) {
-            fprintf(f, "path_wechat=RegisterShellHookWindow -> SHELLHOOK/HSHELL_FLASH -> "
-                       "GetWindowThreadProcessId -> QueryFullProcessImageNameW -> im_on_signal -> notify\n");
-            fprintf(f, "path_qq=worker thread (500ms) -> EnumWindows + tray TB_GETBUTTONINFO -> "
-                       "PostMessage(WM_APP_IM_SIGNAL,kind,pid) -> WndProc -> im_on_signal -> notify\n");
-            fprintf(f, "stage=%d\n", a->imStage);
-            fprintf(f, "shell_api_exported=%d shell_hook_registered=%d shell_msg=%u "
-                       "thread_started=%d (expect 1/1/>0/1 on Win7; wine often 0/0)\n",
-                    im_shell_api_present(a), a->imHookOK,
-                    (unsigned)im_shell_msg(a), a->imThread0);
-            fprintf(f, "wechat notify_active=%d appname_ok=%d (expect 1 / 1)\n",
-                    a->imWxActive, a->imWxApp);
-            fprintf(f, "qq notify_active=%d appname_ok=%d (expect 1 / 1)\n",
-                    a->imQQActive, a->imQQApp);
-            fprintf(f, "cooldown_suppressed=%d (expect >=1: 闪烁连发不刷屏)\n", a->imSupp);
-            fprintf(f, "shellhook_msgs=%d wechat_hits=%d (expect >0 / >=2)\n",
-                    a->imShellMsgs, a->imShellHits);
-            fprintf(f, "worker win_polls=%d tray_polls=%d tray_ok=%ld "
-                       "(expect >0 / >0 / >=0, wine has no real tray)\n",
-                    a->imWinPolls, a->imTrayPolls, im_tray_ok(a));
-            fprintf(f, "thread_clean_exit=%d thread_exited=%ld thread_running=%d "
-                       "(expect 1 / 1 / 0)\n",
-                    a->imThreadJoined, im_thread_exited(a), im_thread_running(a));
-            fprintf(f, "no_storage_file=%d enabled=%d "
-                       "(expect 1 / 1: 通知仍完全内存态)\n",
-                    a->imNoFile, a->imOffOK);
+            fprintf(f, "verdict=CAN receive Win7 tray balloons, but only by OBSERVING "
+                       "explorer's tooltip window; NIF_INFO callbacks are NOT broadcast\n");
+            fprintf(f, "official: NOTIFYICONDATA NIF_INFO -> szInfo/szInfoTitle; "
+                       "NIN_BALLOONSHOW/TIMEOUT/USERCLICK go ONLY to the icon owner "
+                       "(Shell_NotifyIcon NIM_MODIFY, XP+)\n");
+            fprintf(f, "hook: SetWinEventHook(CREATE 0x8000 / SHOW 0x8002, "
+                       "WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS); "
+                       "caller thread must have a message loop; Win2000+\n");
+            fprintf(f, "filter: tooltips_class32 + TTS_BALLOON(0x40) + explorer pid; "
+                       "callback only PostMessage(HWND), no App/UI state, no dirty flag\n");
+            fprintf(f, "text: WM_GETTEXTLENGTH + WM_GETTEXT (SendMessageTimeout "
+                       "SMTO_ABORTIFHUNG %dms), GetWindowText fallback; "
+                       "UIA_ToolTipOpenedEventId(20000) is a Phase-2 upgrade\n",
+                    BALLOON_SEND_TIMEOUT_MS);
+            fprintf(f, "safety: no global hook chain / no worker thread / no polling / "
+                       "no explorer memory reads\n");
+            fprintf(f, "stage=%d\n", a->balloonStage);
+            fprintf(f, "hook_ok=%d tray_pid=%d events=%d (expect 1 / "
+                       "any pid / >=1: wine also provides Shell_TrayWnd)\n",
+                    a->balloonHookOK, a->balloonTrayPid, a->balloonEvents);
+            fprintf(f, "fake_balloon_built=%d plain_tooltip_ignored=%d "
+                    "(expect 1 / 1)\n", a->balloonFakeOK, a->balloonPlainIgnored);
+            fprintf(f, "signal_notify_active=%d text_read_ok=%d text_len=%d "
+                    "(expect 1 / 1 / >0)\n",
+                    a->balloonSignalActive, a->balloonTextOK, a->balloonTextLen);
+            fprintf(f, "cooldown_suppressed=%d hits_after_rewind=%d "
+                    "(expect >=1 / 1)\n", a->balloonSupp, a->balloonRewindOK);
+            fprintf(f, "class_hits=%d style_hits=%d total_hits=%d "
+                    "(expect >0 / >0 / >=2)\n",
+                    a->balloonClassHits, a->balloonStyleHits, a->balloonHits);
+            fprintf(f, "no_storage_file=%d enabled=%d (expect 1 / 1: "
+                    "通知仍完全内存态)\n", a->balloonNoFile, a->balloonOffOK);
             fprintf(f, "render_count=%lu elapsed_ms=%lu\n",
                     (unsigned long)a->renderCount, (unsigned long)a->testElapsed);
             fclose(f);
@@ -2242,6 +2314,8 @@ void tests_finish(App *a)
             fprintf(f, "no_storage_file=%d shown=%d "
                        "(expect 1 / >=3: 完全内存态，不写盘不排队)\n",
                     a->notifyNoFile, a->notifyShown);
+            fprintf(f, "notify_icon_halo_lit=%d (expect 1: 图标底下无灰白圆底 / 圆形容器)\n",
+                    a->notifyNoHalo);
             fprintf(f, "notify_gap_ok=%d gap_px=%.1f min=%.1f "
                        "(expect 1: 程序名不贴图标)\n",
                     a->notifyGapOK, notify_gap_px(a), NOTIFY_GAP_MIN * a->u);

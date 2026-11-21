@@ -8,6 +8,13 @@
  *   Font Awesome 自托管文档：Solid Free = fa-solid-900.ttf，CSS 家族
  *   'Font Awesome 6 Free'；TTF nameID=1/4 是 'Font Awesome 6 Free Solid'，
  *   GDI 的字体映射器匹配 nameID=1/4，故优先用它。
+ *
+ *   OPPO Sans 4.0：同样以 FR_PRIVATE 私有加载，作为**全局正文家族**
+ *   （拉丁 / 数字 / 中文统一）。TTF nameID=1/4 均为 'OPPO Sans 4.0'，
+ *   nameID=16 为空，所以 GDI 直接用 nameID=1 的名字即可。
+ *   依 OPPO Sans Fonts License Agreement：不得修改字体、须保留版权声明与
+ *   协议全文、须在软件中显著声明使用了该字体。故 assets 里是原始 TTF，
+ *   许可全文与署名放在两份 README 顶部。
  */
 #ifndef QISLAND_FONT_H
 #define QISLAND_FONT_H
@@ -31,9 +38,14 @@ typedef struct {
 
 typedef struct {
     double u;
-    WCHAR  fontPath[MAX_PATH];
-    WCHAR  face[64];
-    int    loaded;          /* AddFontResourceExW 结果 */
+    WCHAR  fontPath[MAX_PATH];   /* FA 图标字体路径 */
+    WCHAR  oppoPath[MAX_PATH];   /* OPPO Sans 4.0 路径 */
+    WCHAR  face[64];             /* FA 图标家族（探测后确定） */
+    WCHAR  textFace[64];         /* 全局正文家族：OPPO Sans 4.0 或回退 */
+    WCHAR  cjkFace[64];          /* 中文正文家族：同上 */
+    int    loaded;          /* FA 的 AddFontResourceExW 结果 */
+    int    oppoLoaded;      /* OPPO 的 AddFontResourceExW 结果 */
+    int    oppoOK;          /* 探测通过：全局字体确实可用 */
     int    faOK;            /* 自检通过：FA 字形确实可用 */
     HFONT  uiClock, uiSmall, uiMid, uiBig;
     HFONT  measureFont;     /* 缓存的测量字体，便签换行用 */
@@ -56,11 +68,11 @@ void font_draw_icon(FontSet *f, Canvas *c, unsigned int cp, int px,
 void font_draw_text(FontSet *f, Canvas *c, const WCHAR *s, int px,
                     double x, double y, int align,
                     int cr, int cg, int cb, double k);
-/* 中文标签：只用于「倒计时」三个字，走雅黑避免 PUA/方框 */
+/* 中文标签：走全局字体（OPPO Sans 4.0），避免 PUA/方框 */
 void font_draw_label(FontSet *f, Canvas *c, const WCHAR *s, int px,
                      double x, double y, int align,
                      int cr, int cg, int cb, double k);
-/* 便签正文：常规字重 + 中文字体（kind 3）。用户输入的内容，不是界面标签 */
+/* 便签正文：常规字重 + 全局字体（kind 3）。用户输入的内容，不是界面标签 */
 void font_draw_note(FontSet *f, Canvas *c, const WCHAR *s, int px,
                     double x, double y, int align,
                     int cr, int cg, int cb, double k);
@@ -68,6 +80,8 @@ void font_draw_note(FontSet *f, Canvas *c, const WCHAR *s, int px,
 int  font_measure(FontSet *f, const WCHAR *s, int len, int px, int kind);
 
 /* 自检结果，供 --diag 输出 */
+int  font_oppo_ok(const FontSet *f);
+const WCHAR *font_text_face(const FontSet *f);
 int  font_fa_ok(const FontSet *f);
 const WCHAR *font_fa_face(const FontSet *f);
 

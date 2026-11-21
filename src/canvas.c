@@ -162,6 +162,80 @@ void canvas_blend_px(Canvas *c, int x, int y,
     }
 }
 
+void canvas_write_px(Canvas *c, int x, int y,
+                     int cr, int cg, int cb, double a)
+{
+    unsigned char *o;
+    double da, oa, src[3];
+    int i;
+    if (!c->outBits || a <= 0.0 || x < 0 || y < 0 ||
+        x >= c->W || y >= c->H) return;
+    if (x < c->clipX0 || x >= c->clipX1 ||
+        y < c->clipY0 || y >= c->clipY1) return;
+    if (a > 1.0) a = 1.0;
+    o = (unsigned char *)c->outBits + ((size_t)y * (size_t)c->W + (size_t)x) * 4;
+    da = (double)o[3] / 255.0;
+    oa = a + da * (1.0 - a);
+    src[0] = (double)cb; src[1] = (double)cg; src[2] = (double)cr;
+    /* outBits 是预乘 BGRA：目标保留 (1-a)，源按自身 alpha 预乘后叠加 */
+    for (i = 0; i < 3; i++) {
+        double v = (double)o[i] * (1.0 - a) + src[i] * a;
+        o[i] = (unsigned char)qs_iclamp((int)(v + 0.5), 0, 255);
+    }
+    o[3] = (unsigned char)qs_iclamp((int)(oa * 255.0 + 0.5), 0, 255);
+}
+
+void canvas_round_alpha(Canvas *c, double x, double y, double w, double h,
+                        double r, int cr, int cg, int cb, double a)
+{
+    double cx = x + w * 0.5, cy = y + h * 0.5, hw = w * 0.5, hh = h * 0.5;
+    double soft = 1.2;
+    int x0 = qs_iclamp((int)floor(x - 2), 0, c->W);
+    int y0 = qs_iclamp((int)floor(y - 2), 0, c->H);
+    int x1 = qs_iclamp((int)ceil(x + w + 2), 0, c->W);
+    int y1 = qs_iclamp((int)ceil(y + h + 2), 0, c->H);
+    if (r > hh) r = hh;
+    if (r > hw) r = hw;
+    for (int yy = y0; yy < y1; yy++)
+        for (int xx = x0; xx < x1; xx++) {
+            double d = canvas_sd_roundbox((double)xx + 0.5, (double)yy + 0.5,
+                                          cx, cy, hw, hh, r);
+            double cov = qs_clamp(0.5 - d / soft, 0.0, 1.0);
+            if (cov > 0.0)
+                canvas_write_px(c, xx, yy, cr, cg, cb, cov * a);
+        }
+}
+
+/* dir =  1：顶点在上 (cx, yTop)，底边在 yTop+h —— 气泡在按钮下方，尖角朝上
+   dir = -1：底边在上，顶点在下 (cx, yTop+h) —— 气泡翻到按钮上方，尖角朝下 */
+void canvas_tri(Canvas *c, double cx, double yTop, double halfW, double h,
+                int dir, int cr, int cg, int cb, double a)
+{
+    int y0 = qs_iclamp((int)floor(yTop) - 1, 0, c->H);
+    int y1 = qs_iclamp((int)ceil(yTop + h) + 1, 0, c->H);
+    if (h <= 0.0 || halfW <= 0.0) return;
+    for (int yy = y0; yy < y1; yy++) {
+        double t = (dir > 0) ? (((double)yy + 0.5 - yTop) / h)
+                             : ((yTop + h - ((double)yy + 0.5)) / h);
+        double hw, xa, xb;
+        int ix0, ix1;
+        if (t < 0.0) t = 0.0;
+        if (t > 1.0) t = 1.0;
+        hw = halfW * t;
+        xa = cx - hw; xb = cx + hw;
+        ix0 = qs_iclamp((int)floor(xa) - 1, 0, c->W);
+        ix1 = qs_iclamp((int)ceil(xb) + 1, 0, c->W);
+        for (int xx = ix0; xx < ix1; xx++) {
+            double dl = (double)xx + 0.5 - xa;
+            double dr = xb - ((double)xx + 0.5);
+            double d = dl < dr ? dl : dr;
+            double cov = qs_clamp(0.5 + d, 0.0, 1.0);
+            if (cov > 0.0)
+                canvas_write_px(c, xx, yy, cr, cg, cb, cov * a);
+        }
+    }
+}
+
 void canvas_round(Canvas *c, double x, double y, double w, double h, double r,
                   int cr, int cg, int cb, double k)
 {

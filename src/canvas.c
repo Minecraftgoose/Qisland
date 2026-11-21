@@ -1,9 +1,4 @@
-/* canvas.c — 画布实现
- *
- * 形状用自写有符号距离场（SDF）；过渡带内做 ss x ss 子采样求面积覆盖比，
- * 实心/空白区走快路径。所有控件叠加都只在 alpha>0 的像素上进行，
- * 因此天然被圆角裁切，不需要 SetWindowRgn（整数区域会毁掉抗锯齿）。
- */
+/* canvas.c — 画布实现 */
 #include "canvas.h"
 #include "config.h"
 
@@ -206,8 +201,7 @@ void canvas_round_alpha(Canvas *c, double x, double y, double w, double h,
         }
 }
 
-/* dir =  1：顶点在上 (cx, yTop)，底边在 yTop+h —— 气泡在按钮下方，尖角朝上
-   dir = -1：底边在上，顶点在下 (cx, yTop+h) —— 气泡翻到按钮上方，尖角朝下 */
+/* dir = 1：顶点在上 (cx, yTop)，底边在 yTop+h —— 气泡在按钮下方，尖角朝上 dir = -1：底边在上，顶点在下 (cx, yTop+h) —— 气泡翻到按钮上方，尖角朝下 */
 void canvas_tri(Canvas *c, double cx, double yTop, double halfW, double h,
                 int dir, int cr, int cg, int cb, double a)
 {

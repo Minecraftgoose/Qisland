@@ -1,77 +1,21 @@
 ﻿; Qisland.nsi — NSIS 3.x 安装包（含「识别旧版并处理」的脚本化升级）
-;
-; 位置：源码/nsis/Qisland.nsi
-; 编译：makensis Qisland.nsi
-;       makensis 默认把当前工作目录切到脚本所在目录（除非 /NOCD），
-;       所以下面所有相对路径都以本文件所在目录为基准。
-; 产出：软件/Qisland-0.3.2-Setup.exe
-;
-; 设计要点（用户要求：不做独立升级包，升级逻辑写进同一个安装包）：
-;   .onInit 里检测旧版 → 比较版本 → 静默卸载旧版 → 清理旧卸载器与注册表
-;   → 再走全新安装。这样能同时解决三件事：
-;     1) 旧文件残留：旧卸载器删掉它记录的文件；CleanLegacyFiles 再补删
-;        历史 zip 版遗留、旧卸载器不认识的废弃文件。
-;     2) 注册表混乱：卸载后 DeleteRegKey 兜底，写新值前再删一次，
-;        「程序和功能」不会出现重复条目。
-;     3) 卸载程序不匹配：旧 uninst.exe 用 _?= 不会自删，这里显式 Delete，
-;        再由本版 WriteUninstaller 重新生成，未来卸载用的是本版文件列表。
-;
-; 官方依据（已核对）：
-;   · /S = 静默；_?= 设置 $INSTDIR，并阻止卸载器把自己复制到临时目录
-;     （Chapter3：「It also stops the uninstaller from copying itself to the
-;     temporary directory... can be used along with ExecWait to wait for the
-;     uninstaller to finish. It must be the last parameter and must not
-;     contain any quotes」）。
-;   · 旧卸载器位于 $INSTDIR 内，直接 ExecWait 会过早返回 → 先 CopyFiles
-;     到 $TEMP 再执行（NSIS 官方 wiki「Auto-uninstall old before installing new」）。
-;   · VIProductVersion / VIFileVersion / VIAddVersionKey 写安装包版本资源
-;     （Chapter4，格式必须是 X.X.X.X）。
-;   · ${VersionCompare} 来自官方随附 WordFunc.nsh：0=相等 / 1=前者新 / 2=后者新。
-;   · 官方明确警告「RMDir /r $INSTDIR is not safe」——用户可能在安装目录
-;     放自己的文件，所以这里绝不整目录强删，只按清单 Delete。
-;
-; 只对 **NSIS 安装过的旧版** 做状态迁移；历史 zip 解压版没有卸载注册表项，
-; 视为全新安装，旧解压目录不会被改动（需用户自行删除）。
-;
-; 0.3.2 沿用同一套升级分支（0.1/0.2/0.3/0.3.1 装过 → 0.3.2 安装）。
-; 安装包只释放程序真正会读的文件：
-;   Qisland.exe / LICENSE（项目自身 Apache-2.0）
-;   assets\fa-solid-900.ttf、assets\OPPO Sans 4.0.ttf、assets\notice.wav
-;   LICENSES\ 下六份第三方许可全文（分发合规要求，与仓库 LICENSES/ 对应）
-; 不再释放 preview.png、README.md，也不把图标 png/ico 或许可文本塞进
-; assets\ —— 程序图标、托盘图标、胶囊图标都编在 exe 资源里或自绘，
-; 不读外部图片文件。CI 组装时按同样清单挑文件，见 .github/workflows/build.yml。
-;
-; 0.2 是第一个会真正走升级分支的版本（0.1 装过 → 0.2 安装），
-; 顺带修了三条只在真升级时才暴露的问题：
-;   a) `Unicode true` 下 System::Call 的 `t` 是宽字符串，必须用
-;      FindWindowW；原来的 FindWindowA 永远查不到运行中的窗口；
-;   b) 旧卸载节会 DeleteRegValue ...\Run\Qisland，所以先在 .onInit
-;      **卸载之前**把自启动值存进 $OldRunValue，安装完再恢复并改指新 exe；
-;   c) 卸载后注册表被删，InstallDirRegKey 会退回默认路径，
-;      显式 `StrCpy $INSTDIR $R2` 沿用旧安装目录，目录页预填原位置。
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "WordFunc.nsh"        ; ${VersionCompare}
 
-; 安装包 exe / 卸载器 / 向导图标统一用软件自己的图标。
-; 这张 ico 就是 qisland.rc 编进 Qisland.exe 的那张，与 assets\圆形图标.ico 同源。
-; makensis 默认把工作目录切到本脚本所在目录（源码/nsis/），故相对路径 ..\src\。
-; 必须在 MUI_PAGE_* 之前定义，MUI2 才会把 Icon / UninstallIcon 指到这里。
 !define MUI_ICON    "..\src\qisland.ico"
 !define MUI_UNICON  "..\src\qisland.ico"
 
 !define APPNAME      "Qisland"
-!define APPVERSION   "0.3.2"     ; 与 src/version.h 的 QI_VERSION_STR 一致
-!define APPVERSION4  "0.3.2.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
+!define APPVERSION   "0.3.3"     ; 与 src/version.h 的 QI_VERSION_STR 一致
+!define APPVERSION4  "0.3.3.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
 !define UNINSTKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Qisland"
 !define RUNKEY       "Software\Microsoft\Windows\CurrentVersion\Run"
 !define WNDCLASS     "QislandLayeredClass"
 !define SRCDIR       "..\..\软件\Qisland"
 
-; 升级前先记下旧的开机自启动值：旧卸载器会 DeleteRegValue 把它删掉，
-; 全新安装完成后再按这个记录恢复。必须是 /GLOBAL，跨 .onInit 与 Section 共享。
+; 升级前先记下旧的开机自启动值：旧卸载器会 DeleteRegValue 把它删掉， 全新安装完成后再按这个记录恢复。 必须是 /GLOBAL，跨 .onInit 与 Section 共享。
 Var /GLOBAL OldRunValue
 
 Name "${APPNAME} ${APPVERSION}"
@@ -85,7 +29,7 @@ BrandingText "${APPNAME} ${APPVERSION}"
 ShowInstDetails show
 ShowUninstDetails show
 
-; ---------- 安装包自身的版本资源 ----------
+; 安装包自身的版本资源
 VIProductVersion "${APPVERSION4}"
 VIFileVersion    "${APPVERSION4}"
 VIAddVersionKey /LANG=1033 "ProductName"      "${APPNAME}"
@@ -95,7 +39,7 @@ VIAddVersionKey /LANG=1033 "FileDescription"  "${APPNAME} Setup"
 VIAddVersionKey /LANG=1033 "CompanyName"      "Qisland"
 VIAddVersionKey /LANG=1033 "LegalCopyright"   "See LICENSE and LICENSES"
 
-; ---------- MUI2 页面 ----------
+; MUI2 页面
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Qisland.exe"
 !insertmacro MUI_PAGE_WELCOME
@@ -107,15 +51,9 @@ VIAddVersionKey /LANG=1033 "LegalCopyright"   "See LICENSE and LICENSES"
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
 
-; ============================================================
 ; .onInit —— 升级逻辑全部在这里，一个安装包兼顾全新装 / 重装 / 升级
-; ============================================================
 Function .onInit
 
-  ; ① 程序正在运行会占用 Qisland.exe，覆盖必然失败。
-  ;    System.dll 是 NSIS 官方自带插件。本脚本 `Unicode true`，
-  ;    System::Call 的 `t` 是宽字符串，必须配 FindWindowW；
-  ;    用 FindWindowA 会把 UTF-16 传给 ANSI API 而永远查不到窗口。
   System::Call 'user32::FindWindowW(t "${WNDCLASS}", i 0) i .r0'
   ${If} $0 != 0
     MessageBox MB_OK|MB_ICONSTOP \
@@ -123,7 +61,7 @@ Function .onInit
     Abort
   ${EndIf}
 
-  ; ② 读旧版版本号；空 = 全新安装，什么都不用处理。
+  ; ② 读旧版版本号； 空 = 全新安装，什么都不用处理。
   ReadRegStr $R0 HKCU "${UNINSTKEY}" "DisplayVersion"
   ${If} $R0 == ""
     Return
@@ -142,25 +80,17 @@ Function .onInit
   ${EndIf}
 
 reinstall:
-  ; ④ 定位旧安装目录与旧卸载器。
-  ;    **必须在卸载之前**读开机自启动值：0.1 的卸载节里有
-  ;    DeleteRegValue ...\Run\Qisland，卸载完再读就永远是空，
-  ;    会把用户原本开着的自启动悄悄关掉。
   StrCpy $OldRunValue ""
   ReadRegStr $OldRunValue HKCU "${RUNKEY}" "Qisland"
   ReadRegStr $R2 HKCU "${UNINSTKEY}" "InstallLocation"
   StrCmp $R2 "" legacy_done
   IfFileExists "$R2\uninst.exe" 0 legacy_done
 
-  ; ⑤ 官方 wiki 的关键一步：旧卸载器在 $INSTDIR 内，直接跑会把自己
-  ;    复制到 temp 并自我删除，ExecWait 等不到真正卸载完成。
-  ;    先复制到独立的临时文件，再用 /S + _?= 静默原地卸载。
   Delete "$TEMP\QislandOldUninst.exe"
   CopyFiles /SILENT "$R2\uninst.exe" "$TEMP\QislandOldUninst.exe"
   IfErrors legacy_fail 0
 
-  ; _?= 必须是最后一个参数、不能带引号（官方明文要求），
-  ; 值传**旧安装目录**，让卸载器把 $INSTDIR 指向它并原地删文件。
+  ; _?= 必须是最后一个参数、不能带引号（官方明文要求）， 值传**旧安装目录**，让卸载器把 $INSTDIR 指向它并原地删文件。
   ExecWait '"$TEMP\QislandOldUninst.exe" /S _?=$R2' $R3
   Delete "$TEMP\QislandOldUninst.exe"
 
@@ -170,13 +100,10 @@ reinstall:
     Abort
   ${EndIf}
 
-  ; ⑥ _?= 会阻止卸载器删除自己 → 旧 uninst.exe 还在，显式删掉，
-  ;    否则「程序和功能」里的卸载程序与新版文件列表不匹配。
+  ; ⑥ _?= 会阻止卸载器删除自己 → 旧 uninst.exe 还在，显式删掉， 否则「程序和功能」里的卸载程序与新版文件列表不匹配。
   Delete "$R2\uninst.exe"
-  ; 兜底清注册表：旧卸载器通常已删，这里再删一次防止重复条目。
   DeleteRegKey HKCU "${UNINSTKEY}"
-  ; 注册表刚被删掉，InstallDirRegKey 下次求值会退回默认路径；
-  ; 显式沿用旧目录，让目录页预填原位置、不会把升级变成「另装一份」。
+  ; 注册表刚被删掉，InstallDirRegKey 下次求值会退回默认路径； 显式沿用旧目录，让目录页预填原位置、不会把升级变成「另装一份」。
   StrCpy $INSTDIR $R2
   Goto legacy_done
 
@@ -188,10 +115,7 @@ legacy_fail:
 legacy_done:
 FunctionEnd
 
-; ============================================================
-; 清理历史版本遗留的废弃文件（旧卸载器不认识、也不会删的那些）
-; 绝不 RMDir /r $INSTDIR —— 官方警告会连用户自己放的文件一起删掉。
-; ============================================================
+; 清理历史版本遗留的废弃文件（旧卸载器不认识、也不会删的那些） 绝不 RMDir /r $INSTDIR —— 官方警告会连用户自己放的文件一起删掉。
 Function CleanLegacyFiles
   Delete "$INSTDIR\uninst.exe"                 ; 旧卸载器（_?= 不自删）
   Delete "$INSTDIR\ffmpeg.exe"                 ; 录屏方案撤掉后遗留
@@ -199,8 +123,7 @@ Function CleanLegacyFiles
   Delete "$INSTDIR\GPL-3.0.txt"
   Delete "$INSTDIR\录屏资料.md"
   Delete "$INSTDIR\Qisland_old.exe"
-  ; 0.3.1 之前随包释放过、现在不再带的文件（zip 版解压目录没有卸载器，
-  ; 这里按名单补删，保证升级后目录里只剩运行必需项）
+  ; 0.3.1 之前随包释放过、现在不再带的文件（zip 版解压目录没有卸载器， 这里按名单补删，保证升级后目录里只剩运行必需项）
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\preview.png"
   Delete "$INSTDIR\assets\圆形图标.ico"
@@ -215,9 +138,7 @@ Function CleanLegacyFiles
   Delete "$INSTDIR\assets\OPPO-Sans-4.0-License-Notice.txt"
 FunctionEnd
 
-; ============================================================
 ; 主安装节
-; ============================================================
 Section "!${APPNAME}" SEC_MAIN
   SectionIn RO
   SetOutPath "$INSTDIR"
@@ -227,16 +148,12 @@ Section "!${APPNAME}" SEC_MAIN
   File "${SRCDIR}\Qisland.exe"
   File "${SRCDIR}\LICENSE"           ; 项目自身 Apache-2.0 全文
 
-  ; assets\ 只放程序运行时真正会读的三个文件：
-  ;   font.c 私有加载两个 TTF，notify.c 用 PlaySoundW 播 notice.wav。
-  ; 图标（程序 / 托盘 / 胶囊）全部编在 exe 资源里或自绘，不读外部图片。
   SetOutPath "$INSTDIR\assets"
   File "${SRCDIR}\assets\fa-solid-900.ttf"
   File "${SRCDIR}\assets\OPPO Sans 4.0.ttf"
   File "${SRCDIR}\assets\notice.wav"
 
-  ; 第三方许可全文按分发合规要求保留，但单独放 LICENSES\，不混进 assets\。
-  ; OPPO Sans 许可要求任何副本都保留版权声明与协议全文。
+  ; 第三方许可全文按分发合规要求保留，但单独放 LICENSES\，不混进 assets\。 OPPO Sans 许可要求任何副本都保留版权声明与协议全文。
   SetOutPath "$INSTDIR\LICENSES"
   File "${SRCDIR}\LICENSES\ATTRIBUTION.txt"
   File "${SRCDIR}\LICENSES\Apache-2.0.txt"
@@ -260,10 +177,6 @@ Section "!${APPNAME}" SEC_MAIN
   WriteRegDWORD HKCU "${UNINSTKEY}" "NoModify"             1
   WriteRegDWORD HKCU "${UNINSTKEY}" "NoRepair"             1
 
-  ; 状态迁移：旧版若开过开机自启动，Run 值指向旧 exe 路径，
-  ; 升级后必须改指新路径；原本没开的绝不擅自打开。
-  ; 用 .onInit 里**卸载之前**存下的 $OldRunValue 判断，
-  ; 不能在这里现读（旧卸载器已经把 Run 值删了）。
   ${If} $OldRunValue != ""
     WriteRegStr HKCU "${RUNKEY}" "Qisland" '"$INSTDIR\Qisland.exe"'
   ${EndIf}
@@ -273,10 +186,7 @@ Section "!${APPNAME}" SEC_MAIN
   CreateShortcut  "$SMPROGRAMS\Qisland\卸载 Qisland.lnk"   "$INSTDIR\uninst.exe"
 SectionEnd
 
-; ============================================================
-; 卸载节：只删自己释放过的文件，用户数据保留
-; %APPDATA%\Qisland\ 下的 note.txt / clipboard.bin / settings.bin 不删。
-; ============================================================
+; 卸载节：只删自己释放过的文件，用户数据保留 %APPDATA%\Qisland\ 下的 note.txt / clipboard.bin / settings.bin 不删。
 Section "Uninstall"
   Delete "$INSTDIR\Qisland.exe"
   Delete "$INSTDIR\LICENSE"

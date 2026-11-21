@@ -1,9 +1,4 @@
-/* notify.c — 即时通知：内存态覆盖视图、图标光栅化、两行文本、无持久化
- *
- * 0.3.1 起：每次弹出顺带播一声 assets\notice.wav（PlaySoundW 异步，静默失败）。
- * 「不写盘」仍成立 —— 通知内容不持久化；读的只是 exe 旁的运行时资源文件，
- * 与字体走同一套 assets\ 目录约定，不是新增的数据落盘。
- */
+/* notify.c — 即时通知：内存态覆盖视图、图标光栅化、两行文本、无持久化 */
 #include "notify.h"
 #include "app.h"
 #include "canvas.h"
@@ -11,8 +6,7 @@
 #include "icons.h"
 #include "anim.h"
 #include "ui.h"
-#include <mmsystem.h>      /* PlaySoundW；common.h 定义了 WIN32_LEAN_AND_MEAN，
-                              windows.h 不会自动带进 mmsystem.h，必须显式包含 */
+#include <mmsystem.h>      /* PlaySoundW； common.h 定义了 WIN32_LEAN_AND_MEAN， windows.h 不会自动带进 mmsystem.h，必须显式包含 */
 
 void notify_init(Notify *n)
 {
@@ -21,14 +15,6 @@ void notify_init(Notify *n)
 
 int notify_active(const Notify *n) { return n && n->active; }
 
-/* ---------------- 通知音效：PlaySoundW 异步播放 assets\notice.wav ----------------
-   WAV PCM 由系统原生播放：无解码延迟、不依赖 MPEG 驱动、不需要解码库。
-   SND_NODEFAULT 必须带 —— 否则找不到文件时会播系统默认「叮」声。
-   SND_ASYNC 下新调用会中断上一次正在播的那一声，正好对应「新通知顶掉
-   旧通知时重播」；不传 SND_NOSTOP。
-   返回值一律不看：缺文件 / 无音频设备都只是"没声音"，通知卡片照常显示，
-   不弹框、不阻塞、不写盘、不建线程。path 用静态缓冲，保证异步播放期间
-   字符串始终有效（不依赖 PlaySound 内部是否复制参数）。 */
 static void notify_sound_play(void)
 {
     static WCHAR path[1024];
@@ -60,8 +46,7 @@ HICON notify_icon_from_file(const WCHAR *path)
     return sfi.hIcon;   /* 调用方 DestroyIcon */
 }
 
-/* 弹出：保存现场 → 覆盖尺寸档为中卡片 → 强制显示与展开 → 播一声音效。
-   不写盘、不排队；唯一的 IO 是读 exe 旁的运行时资源 notice.wav。 */
+/* 弹出：保存现场 → 覆盖尺寸档为中卡片 → 强制显示与展开 → 播一声音效。 不写盘、不排队； */
 static void notify_begin(Notify *n, App *a, DWORD ms)
 {
     if (n->active) n->replaced++;
@@ -73,8 +58,7 @@ static void notify_begin(Notify *n, App *a, DWORD ms)
     n->active = 1;
     n->shown++;
 
-    /* 通知不进导航表：用 Anim 的尺寸覆盖位把所有 anim_view_size 调用
-       统一切到中卡片，切档弹簧照常工作，窗口余量不用重算（中卡最小）。 */
+    /* 通知不进导航表：用 Anim 的尺寸覆盖位把所有 anim_view_size 调用 统一切到中卡片，切档弹簧照常工作，窗口余量不用重算（中卡最小）。 */
     a->anim.overrideMid = 1;
 
     if (!a->visible) {
@@ -94,7 +78,7 @@ static void notify_begin(Notify *n, App *a, DWORD ms)
         ui_layout(a, w * a->u, h * a->u);   /* 立刻刷新命中区，不留一帧空窗 */
     }
 
-    /* 新通知顶掉旧通知时也会重新播一声；失败完全静默 */
+    /* 新通知顶掉旧通知时也会重新播一声； 失败完全静默 */
     notify_sound_play();
 }
 
@@ -142,10 +126,7 @@ void notify_dismiss(Notify *n, App *a)
     if (!n || !n->active) return;
     n->active = 0;
     n->dismissed++;
-    /* 旧版「00:00:00 + bell 常驻提示」已删除：通知就是唯一的提醒形态。
-       点掉或过期都清掉内部一次性触发标记，回到完全正常的计时器状态，
-       不会残留任何 bell 图标 / 淡圆底 / 数字变色。
-       通知卡片本身也不给图标加圆形容器底。 */
+    
     ui_clear_end(a);
     a->anim.overrideMid = 0;
     a->ui.view = n->savedView;
@@ -178,7 +159,7 @@ void notify_tick(Notify *n, App *a, DWORD now)
     }
 }
 
-/* ---------------- HICON 光栅化：独立 DIB → 覆盖率 → alpha 画布 ---------------- */
+/* HICON 光栅化：独立 DIB → 覆盖率 → alpha 画布 */
 static void draw_hicon(Canvas *c, HICON ico,
                        double x, double y, double w, double h, double k)
 {
@@ -216,8 +197,7 @@ static void draw_hicon(Canvas *c, HICON ico,
                 r = (int)((v >> 16) & 255);
             int mx = b > g ? b : g; if (r > mx) mx = r;
             if (mx <= 8) continue;
-            /* 黑底上 DrawIconEx 的结果是「颜色 × alpha」；反预乘还原色相，
-               再用 mx 当覆盖率叠进画布，边缘连续灰阶、无硬边。 */
+            /* 黑底上 DrawIconEx 的结果是「颜色 × alpha」； 反预乘还原色相， 再用 mx 当覆盖率叠进画布，边缘连续灰阶、无硬边。 */
             int rr = qs_iclamp(r * 255 / mx, 0, 255);
             int gg = qs_iclamp(g * 255 / mx, 0, 255);
             int bb = qs_iclamp(b * 255 / mx, 0, 255);
@@ -230,7 +210,7 @@ static void draw_hicon(Canvas *c, HICON ico,
     DeleteDC(dc);
 }
 
-/* ---------------- 通知卡片绘制：中卡片尺寸，左图标 + 右两行文字 ---------------- */
+/* 通知卡片绘制：中卡片尺寸，左图标 + 右两行文字 */
 void notify_draw(Notify *n, App *a, double W, double H, double k)
 {
     Canvas *c = &a->canvas;
@@ -241,14 +221,12 @@ void notify_draw(Notify *n, App *a, double W, double H, double k)
     int pxName, pxDetail;
     WCHAR line[NOTIFY_DETAIL_MAX + 1];
 
-    /* 左侧图标区：布局常量在 config.h，绘制与测试同源，避免两处算得不一样。
-       TEXT_X 与图标右缘之间留 NOTIFY_GAP_MIN 以上，文字不再贴着图标。 */
+    
     iconW = H * NOTIFY_ICON_S; iconH = iconW;
     iconX = L + W * NOTIFY_ICON_X;
     iconY = H * 0.5 - iconH * 0.5;
 
-    /* 图标直接落在卡片底色上：不画任何圆形容器 / 灰白圆底。
-       用户明确要求「图标底下不要加那个灰白的圆」。 */
+    /* 图标直接落在卡片底色上：不画任何圆形容器 / 灰白圆底。 用户明确要求「图标底下不要加那个灰白的圆」。 */
     if (n->faIcon && font_fa_ok(f)) {
         int fpx = qs_iclamp((int)(iconH * 0.86), 18, 64);
         font_draw_icon(f, c, n->faIcon, fpx,
@@ -260,8 +238,7 @@ void notify_draw(Notify *n, App *a, double W, double H, double k)
         /* 两者都没有：左侧留空，不画圆点占位（通知区不出现任何圆形底） */
     }
 
-    /* 右侧文本区：程序名（大）/ 详细信息（小灰）。
-       右端 = TEXT_X + TEXT_W = 0.905W，正好避开右上角 xmark。 */
+    /* 右侧文本区：程序名（大）/ 详细信息（小灰）。 右端 = TEXT_X + TEXT_W = 0.905W，正好避开右上角 xmark。 */
     tx = L + W * NOTIFY_TEXT_X;
     tw = W * NOTIFY_TEXT_W;
     pxName = qs_iclamp((int)(H * 0.175), 16, 28);
@@ -301,7 +278,7 @@ void notify_draw(Notify *n, App *a, double W, double H, double k)
                         DIM_R, DIM_G, DIM_B, k * 0.95);
     }
 
-    /* 右上角关闭：仅图标，无文字；点它 dismiss */
+    /* 右上角关闭：仅图标，无文字； 点它 dismiss */
     {
         double cx = L + W * 0.945, cy = H * 0.22;
         int cpx = qs_iclamp((int)(H * 0.10), 12, 20);

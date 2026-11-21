@@ -1,36 +1,11 @@
-/* about.c — 设置页「关于」右栏
- *
- * 布局（0.3 轮按用户要求改：字号整体放大 + 全部纵向排列）：
- *   左上软件图标（exe 资源 IDI_QISLAND，即「中间黑」程序图标）
- *   右侧 Qisland + 下一行仓库地址（整行可点的链接，下划线提示），
- *   下方一条极淡横线；头部固定不滚。
- *   四个板块「使用的库 / 架构 / 许可证 / 使用的资源」单列依次向下排布，
- *   不再两列并排；每个板块内的胶囊也**每个独占一行**，纵向堆叠。
- *   胶囊「主体」亮色、「· 许可」淡色；长条目自动收缩字号以免越出板块宽。
- *
- * 可滚动：内容按文档流排布，超出 aboutBody 的部分裁掉；
- *   滚轮累加到 WHEEL_DELTA 走一步，右缘一条 3px 淡圆条指示位置。
- *   文档高度 docH 在绘制时算一次并缓存，滚轮据此 clamp。
- *   字号放大 + 单列后文档远高于可视区，滚动条一定会出现。
- *
- * 仓库链接：命中框由 settings_boxes() 给（b->aboutRepo），与文字绘制同源；
- *   点击由 ui.c 的 H_ABOUT_REPO → sys_open_repo() 用 ShellExecuteW 打开
- *   系统默认浏览器。链接本身不随文档滚动，任何滚动位置都能点。
- *
- * 实现约束（与项目其它页面一致）：
- *   · 只用目标态标称尺寸 W0/H0/L0，动画期间不重排、不重算字号；
- *   · 文字走全局 OPPO Sans（font_draw_label），无系统控件、无子窗口；
- *   · layered DIB 上 GDI 不保证写 alpha，程序图标先画进独立 32bpp DIB
- *     再按覆盖率叠进画布（同 notify.c 的 HICON 路径），不做灰白圆底；
- *   · 不建线程、不设定时器、不写盘；滚动只置一次脏，静止零重绘不变。
- */
+/* about.c — 设置页「关于」右栏 */
 #include "about.h"
 #include "app.h"
 #include "config.h"
 #include "canvas.h"
 #include "font.h"
 
-/* ---------------- 文案（逐字来自确认稿，封闭清单第 15 条） ---------------- */
+/* 文案（逐字来自确认稿，封闭清单第 15 条） */
 typedef struct { const WCHAR *head; const WCHAR *tail; } Chip;
 
 static const Chip kLibs[] = {
@@ -67,7 +42,7 @@ static const int   kChipN[4]  = {
     (int)(sizeof(kRes)  / sizeof(kRes[0])),
 };
 
-/* ---------------- 胶囊度量 / 绘制 ---------------- */
+/* 胶囊度量 / 绘制 */
 static int chip_pad_x(int px) { return (int)(px * 0.95 + 0.5); }
 static int chip_h(int px)     { return (int)(px * 2.10 + 0.5); }
 
@@ -97,8 +72,7 @@ static void chip_draw(App *a, const Chip *ch, int px,
     double cy = y + h * 0.5;
     double tx;
 
-    /* 字号放大后个别长条目（如 Font Awesome 那行许可）可能比板块还宽。
-       逐 px 收缩到放得下为止；高度仍按标称 px 算，量高与绘制两遍一致。 */
+    /* 字号放大后个别长条目（如 Font Awesome 那行许可）可能比板块还宽。 逐 px 收缩到放得下为止； */
     chip_full(ch, buf, 192);
     tw = font_measure(&a->fonts, buf, (int)wcslen(buf), eff, 2);
     while (eff > 10 && tw + 2 * chip_pad_x(eff) > (int)w) {
@@ -133,9 +107,6 @@ static void chip_draw(App *a, const Chip *ch, int px,
     }
 }
 
-/* 一个板块：标题 + **逐行纵向**胶囊，每个胶囊独占一行。
-   draw=0 只算高度，draw=1 同时绘制；两遍走同一套行距，滚轮 clamp 用的
-   docH 与画面严格一致。宽度按内容自适应，超长条目由 chip_draw 收缩字号。 */
 static double block_run(App *a, int bi, double x, double y, double w,
                         int px, int titlePx, int draw, double k)
 {
@@ -164,9 +135,7 @@ static double block_run(App *a, int bi, double x, double y, double w,
     return (cy - gapY) - y;
 }
 
-/* ---------------- 文档流：四个板块单列纵向依次排布 ----------------
-   0.3 轮起不再「使用的库 / 架构」两列并排，全部用整行宽度依次向下。
-   内容高度远高于 aboutBody.h，滚轮一定滚得动。 */
+/* 文档流：四个板块单列纵向依次排布 0.3 轮起不再「使用的库 / 架构」两列并排，全部用整行宽度依次向下。 内容高度远高于 aboutBody.h，滚轮一定滚得动。 */
 static double about_doc(App *a, const SBox *body, double H,
                         int px, int titlePx, int draw, double k)
 {
@@ -184,9 +153,6 @@ static double about_doc(App *a, const SBox *body, double H,
     return total - gap;    /* 末尾那段 gap 只是留白，不计进文档高 */
 }
 
-/* ---------------- 程序图标：独立 DIB → 覆盖率 → alpha 画布 ----------------
-   这是「中间黑」那张资源图标。它在深底上很暗，光栅化时把覆盖率适度放大
-   并提亮色相（对应效果稿的 brightness(1.75)），但不加任何圆形底衬。 */
 static void draw_program_icon(App *a, double x, double y, double size, double k)
 {
     Canvas *c = &a->canvas;
@@ -245,7 +211,7 @@ static void draw_program_icon(App *a, double x, double y, double size, double k)
     DeleteDC(dc);
 }
 
-/* ---------------- 主绘制 ---------------- */
+/* 主绘制 */
 void about_draw(App *a, double W, double H, double L,
                 const SetBoxes *b, double k)
 {
@@ -272,9 +238,7 @@ void about_draw(App *a, double W, double H, double L,
     font_draw_label(&a->fonts, c, L"Qisland", namePx,
                     tx, iy + icon * 0.36, 0,
                     ABOUT_HEAD_R, ABOUT_HEAD_G, ABOUT_HEAD_B, k);
-    /* 仓库链接：文字与下划线共用 b->aboutRepo 这一份命中框（ui.c 的
-       H_ABOUT_REPO 也用它），字号按可用宽逐 px 收缩，下划线只画到实际字宽。
-       整行范围内点击都会由 sys_open_repo() 打开系统默认浏览器。 */
+    
     {
         const SBox *repo = &b->aboutRepo;
         const WCHAR *url = QISLAND_REPO_URL;

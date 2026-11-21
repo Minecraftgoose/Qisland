@@ -1,16 +1,4 @@
-/* update.c — 设置页「更新」：查 GitHub 最新 Release，回报版本与原始响应
- *
- * 三层防护，保证点一下按钮永远不会把主线程卡住：
- *   1. 所有网络 IO 在工作线程，主线程只收消息、写右栏文本、弹即时通知；
- *   2. WinINet 设超时并先查状态码，4xx/5xx 也把错误页原样读回来；
- *      WinHTTP 作为 Win7 的 TLS 1.2 兜底，不依赖系统里的外部下载工具；
- *   3. 独立看门狗：WinINet 的超时选项在部分网络环境根本不生效，超时就
- *      直接关掉正在阻塞读的请求句柄把工作线程拽出来，并允许立刻重试。
- *
- * 出错时不写「可能是没网 / 代理拦截 / 稍后再试」这类猜测，只给事实：
- * 阶段、HTTP 状态、Win32 错误码、URL、WinINet 扩展文本，再原样附上服务器
- * 返回的字节；完整字节另存到 %TEMP%\Qisland_update_error.txt。
- */
+/* update.c — 设置页「更新」：查 GitHub 最新 Release，回报版本与原始响应 */
 #include "update.h"
 #include "app.h"
 #include "config.h"
@@ -18,11 +6,11 @@
 #include "notify.h"
 #include "icons.h"
 
-#include <wininet.h>       /* 本翻译单元只用 WinINet；WinHTTP 在另一个 TU */
+#include <wininet.h>       /* 本翻译单元只用 WinINet； WinHTTP 在另一个 TU */
 #include <wchar.h>
 #include <stdio.h>
 
-/* ---------------------------------------------------------------- 常量 */
+/* 常量 */
 #ifndef UPD_TIMEOUT_MS
 #define UPD_TIMEOUT_MS   15000
 #endif
@@ -43,7 +31,7 @@ static const WCHAR *UPD_HEADERS =
 #define EXCHANGE(p, v)  InterlockedExchange((volatile LONG *)(p), (LONG)(v))
 #define READ(p)         InterlockedCompareExchange((volatile LONG *)(p), 0, 0)
 
-/* ------------------------------------------------------------ 结果缓冲 */
+/* 结果缓冲 */
 /* 只有主线程读写：工作线程通过 WM_APP_UPDATE 把一份独立内存交过来 */
 static UpdMsg   g_result;
 static double   g_scroll = 0.0;
@@ -77,8 +65,8 @@ void update_result_wheel(int dir, double viewH)
     g_scroll = s;
 }
 
-/* ------------------------------------------------------------ 小工具 */
-/* "v1.10.2" / "1.10" / "v2" → 三段数字；返回 0 = 解析不出来 */
+/* 小工具 */
+/* "v1.10.2" / "1.10" / "v2" → 三段数字； 返回 0 = 解析不出来 */
 static int parse_ver(const char *t, int *maj, int *min, int *pat)
 {
     int v[3] = { 0, 0, 0 }, n = 0, i;
@@ -108,7 +96,7 @@ static int ver_cmp(int a0, int a1, int a2, int b0, int b1, int b2)
     return 0;
 }
 
-/* JSON 里找 "key":"value"，简单跳过转义；找不到返回 0 */
+/* JSON 里找 "key":"value"，简单跳过转义； 找不到返回 0 */
 static int json_str(const char *json, const char *key, char *out, int outn)
 {
     char pat[128];
@@ -127,7 +115,7 @@ static int json_str(const char *json, const char *key, char *out, int outn)
     return i > 0;
 }
 
-/* ------------------------------------------------------------ 文本拼装 */
+/* 文本拼装 */
 static void text_cat(WCHAR *dst, int cap, const WCHAR *s)
 {
     int i = 0, j = 0;
@@ -136,7 +124,6 @@ static void text_cat(WCHAR *dst, int cap, const WCHAR *s)
     dst[i] = 0;
 }
 
-/* 通知正文：把结果文本压成一行，控制字符换成 '.'，避免 \0 截断或响铃 */
 static void make_brief(UpdMsg *m)
 {
     int i = 0, j = 0;
@@ -214,7 +201,7 @@ static void set_raw(UpdMsg *m, const WCHAR *stage, DWORD status,
         _snwprintf(t, 1200, L"[响应 %d 字节]\n", len);
         text_cat(m->text, UPD_TEXT_CHARS, t);
 
-        /* 优先按 UTF-8 解码；非法字节则退回逐字节 */
+        /* 优先按 UTF-8 解码； 非法字节则退回逐字节 */
         wide = (WCHAR *)malloc(((size_t)len + 1) * sizeof(WCHAR));
         if (wide) {
             wn = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
@@ -250,7 +237,7 @@ static void set_raw(UpdMsg *m, const WCHAR *stage, DWORD status,
         }
     } else {
         text_cat(m->text, UPD_TEXT_CHARS, L"[响应] (无响应体)\n");
-        /* 没有 body 时不留上一轮的旧内容，免得用户翻文件误判 */
+        
         delete_raw_file();
     }
     make_brief(m);
@@ -267,7 +254,7 @@ static void set_info(UpdMsg *m, int kind, const WCHAR *title, const WCHAR *text)
     make_brief(m);
 }
 
-/* --------------------------------------------------------- HTTP 主链路 */
+/* HTTP 主链路 */
 typedef struct {
     volatile PVOID inet, url, whReq;
     volatile LONG  abort;
@@ -385,7 +372,7 @@ static int http_get_ex(const char *url, const WCHAR *headers,
     return 1;
 }
 
-/* ------------------------------------------------------------ 线程上下文 */
+/* 线程上下文 */
 typedef struct {
     HWND         hwnd;
     HANDLE       watch;
@@ -463,8 +450,7 @@ static DWORD WINAPI upd_thread(LPVOID arg)
     ok = http_get_ex(api, UPD_HEADERS, &json, &jlen, &st,
                      &c->slots, UPD_TIMEOUT_MS, &we, ext, 512);
     if (!ok && !READ(&c->slots.abort)) {
-        /* Win7 的 Schannel 常没开 TLS 1.2，WinINet 直接握手失败；
-           WinHTTP 显式请求 TLS 1.2 再试一次，不依赖外部 exe。 */
+        /* Win7 的 Schannel 常没开 TLS 1.2，WinINet 直接握手失败； WinHTTP 显式请求 TLS 1.2 再试一次，不依赖外部 exe。 */
         int wok = qi_winhttp_get(wapi, UPD_HEADERS, &wjson, &wlen, &wst,
                                  &c->slots.abort, &c->slots.whReq,
                                  UPD_TIMEOUT_MS);
@@ -502,7 +488,7 @@ static DWORD WINAPI upd_thread(LPVOID arg)
                        !parse_ver(tag, &maj, &min, &pat)) {
                 set_raw(m, L"API（读不到版本号）", 200, json, jlen, api, 0, NULL);
             } else {
-                /* tag 转成宽字符串再拼，避免不同工具链对 %S 的解释差异 */
+                
                 MultiByteToWideChar(CP_UTF8, 0, tag, -1, wtag, 64);
                 parse_ver(QI_VERSION_STR, &cma, &cmi, &cpa);
                 if (ver_cmp(maj, min, pat, cma, cmi, cpa) <= 0) {
@@ -533,14 +519,13 @@ static DWORD WINAPI upd_thread(LPVOID arg)
     {
         int timedOut = READ(&c->timedOut);
         free(c);
-        /* 超时时看门狗已经清过 busy；这里绝不能再清一次，否则会把新一轮
-           检查的连点保护误清零 */
+        /* 超时时看门狗已经清过 busy； 这里绝不能再清一次，否则会把新一轮 检查的连点保护误清零 */
         if (!timedOut) InterlockedExchange(&g_busy, 0);
     }
     return 0;
 }
 
-/* ------------------------------------------------------------ 对外入口 */
+/* 对外入口 */
 void update_check(HWND hwnd)
 {
     UpdCtx *c;
@@ -612,8 +597,7 @@ void update_on_message(App *a, WPARAM wp, LPARAM lp)
         faIcon = FA_BELL; ms = 20000;
     }
 
-    /* 结果一律走 Qisland 自己的即时通知：内存态、不排队、到点自动消失，
-       不弹系统对话框、不阻塞主循环。 */
+    /* 结果一律走 Qisland 自己的即时通知：内存态、不排队、到点自动消失， 不弹系统对话框、不阻塞主循环。 */
     if (!READ(&g_shutdown))
         notify_show_fa(&a->notify, a, faIcon,
                        g_result.title, g_result.brief, ms);

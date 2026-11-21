@@ -1,22 +1,11 @@
-/* tooltip.c — 悬停提示气泡（黑底圆角 + 小尖角 + 白字）
- *
- * 为什么不用系统 TOOLTIPS_CLASS：主窗口是 WS_EX_LAYERED，所有内容都要画进
- * 32bpp 预乘 BGRA 位图再由 UpdateLayeredWindow 合成；WS_CHILD 控件不会被
- * 合成进去。所以气泡用 canvas_round_alpha / canvas_tri 自己写 alpha。
- *
- * 气泡可以浮出卡片（画在主形状的透明区），为此 WM_NCHITTEST 加了
- * anim_inside_target 条件：形状外的像素即便有 alpha 也返回 HTTRANSPARENT，
- * 不吞桌面点击。文字仍走 font_draw_label 的 4x4 覆盖率，无锯齿。
- */
+/* tooltip.c — 悬停提示气泡（黑底圆角 + 小尖角 + 白字） */
 #include "tooltip.h"
 #include "app.h"
 #include "config.h"
 #include "font.h"
 #include "ui.h"
 
-/* 封闭清单第 8 类（见 AGENTS.md 第 4 节第 8 条）：悬停提示文案。
-   仅鼠标停在控件上时出现，不常驻、不进任何页面布局。
-   逐条登记，不得自行扩项。 */
+/* 封闭清单第 8 类（见 AGENTS.md 第 4 节第 8 条）：悬停提示文案。 仅鼠标停在控件上时出现，不常驻、不进任何页面布局。 */
 const WCHAR *tooltip_text(int id)
 {
     switch (id) {
@@ -131,11 +120,10 @@ void tooltip_draw(App *a, Canvas *c)
         if (by < 4.0) by = 4.0;
     }
 
-    /* ui_draw 里可能留下裁剪框（便签 / 剪贴板文本区），这里放开，
-       否则浮出卡片的气泡会被裁掉 */
+    /* ui_draw 里可能留下裁剪框（便签 / 剪贴板文本区），这里放开， 否则浮出卡片的气泡会被裁掉 */
     canvas_reset_clip(c);
 
-    /* 阴影 → 尖角 → 1px 淡边 → 本体。都写 alpha，可落在形状外。 */
+    /* 阴影 → 尖角 → 1px 淡边 → 本体。 都写 alpha，可落在形状外。 */
     canvas_round_alpha(c, bx + 2.0 * u, by + 3.0 * u, bw, bh,
                        TIP_R * u, 0, 0, 0, 0.26);
 
@@ -149,7 +137,7 @@ void tooltip_draw(App *a, Canvas *c)
     canvas_round_alpha(c, bx, by, bw, bh, TIP_R * u,
                        TIP_BG_R, TIP_BG_G, TIP_BG_B, 1.0);
 
-    /* 文字：气泡区域 alpha 已 >0，blend_px 正常生效；4x4 覆盖率无锯齿 */
+    /* 文字：气泡区域 alpha 已 >0，blend_px 正常生效； 4x4 覆盖率无锯齿 */
     font_draw_label(&a->fonts, c, s, px,
                     bx + bw * 0.5, by + bh * 0.5, 1,
                     TIP_FG_R, TIP_FG_G, TIP_FG_B, 1.0);

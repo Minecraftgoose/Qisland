@@ -1,17 +1,4 @@
-/* capsuleicon.c — 胶囊态右侧的白色圆形图标（无倒计时时显示）
- *
- * 素材：用户提供的「圆形图标文件包」里**中间白、边缘黑**那张
- *   （白色黑边_透明.png / 白色黑边.ico）。中间黑的那张用作**程序图标**，
- *   由 src/qisland.rc 编译进 exe 资源，见 window.c 的 WNDCLASSEXW.hIcon。
- *
- * 这里把白色图标离线缩成 64x64 的「灰度 + alpha」两字节数组编进 exe：
- *   · 不依赖 WIC / GDI+ / libpng，Win7 纯净 SP1 直接可用；
- *   · 不读外部文件，assets 拆走也不影响图标显示；
- *   · layered window 的 32bpp DIB 靠 alpha 合成，GDI 不保证写 alpha，
- *     所以不走 LoadImage/DrawIconEx 那条路，直接用 canvas_blend_px。
- * 源图 RGB 近似中性（通道最大差 2），只存一个灰度字节足够。
- * 数组由脚本从原始 PNG 用 LANCZOS 缩放生成，**不要手改**。
- */
+/* capsuleicon.c — 胶囊态右侧的白色圆形图标（无倒计时时显示） */
 #include "capsuleicon.h"
 #include "canvas.h"
 
@@ -327,7 +314,7 @@ void capsule_icon_draw(Canvas *c, double cx, double cy, double d, double k)
                 double u = (px - left) / d, v = (py - top) / d;
                 if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) continue;
                 ci_sample(u, v, &g, &al);
-                /* 按 alpha 加权累计灰度，避免透明黑边把白心拉灰 */
+                
                 ga += g * al / 255.0;
                 aa += al / 255.0;
             }

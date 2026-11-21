@@ -8,8 +8,7 @@ typedef struct {
     int    W, H;
     double u;
     int    ss;
-    /* 全局裁剪矩形：所有覆盖比叠加都会受它约束。
-       便签文本用它卡在内容区里，上下超出的行不会画到卡片外。 */
+    /* 全局裁剪矩形：所有覆盖比叠加都会受它约束。 便签文本用它卡在内容区里，上下超出的行不会画到卡片外。 */
     int    clipX0, clipY0, clipX1, clipY1;
     HDC    outDC, txtDC;
     HBITMAP outBmp, txtBmp;
@@ -26,9 +25,7 @@ void   canvas_shape(Canvas *c, double w, double h, double r);
 /* 覆盖比叠加原语（设备像素坐标） */
 void   canvas_blend_px(Canvas *c, int x, int y,
                        int cr, int cg, int cb, double k);
-/* 以下三个会**写入 alpha 通道**，允许在形状外的透明区域新建浮层。
-   blend_px 只在 da>0 的像素上叠色（控件用，天然被圆角裁切）；
-   write_px 走完整 src-over，用于 tooltip 这类要浮出卡片的临时气泡。 */
+
 void   canvas_write_px(Canvas *c, int x, int y,
                        int cr, int cg, int cb, double a);
 void   canvas_round_alpha(Canvas *c, double x, double y, double w, double h,

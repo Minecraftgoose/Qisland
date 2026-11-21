@@ -1,16 +1,4 @@
-/* update_winhttp.c — WinHTTP GET 兜底
- *
- * 单独一个翻译单元的原因：wininet.h 与 winhttp.h 对 INTERNET_SCHEME /
- * URL_COMPONENTS / HTTP_VERSION_INFO 的 typedef 互相矛盾，不能进同一个
- * 编译单元。本文件只碰 WinHTTP，主链路在 update.c 里用 WinINet。
- *
- * 为什么需要这一层：Win7 的 Schannel 常未启用 TLS 1.2，而 GitHub 早已强制
- * TLS 1.2；Win7 也不自带 curl.exe。WinHTTP 5.1 是系统 DLL，走自己的 HTTP
- * 栈，显式请求 TLS 1.2 即可，不依赖任何外部 exe 或第三方解码库。
- *
- * 链接 -lwinhttp。不用裸 Winsock —— WinHTTP 已封装 socket、HTTP 头、
- * Content-Length 和重定向。
- */
+/* update_winhttp.c — WinHTTP GET 兜底 */
 #ifndef UNICODE
 #define UNICODE
 #endif
@@ -26,8 +14,7 @@
 #define WH_MAX_BODY   (1024 * 1024)   /* API 是 JSON，1 MB 足够 */
 #define WH_READ(p)    InterlockedCompareExchange((volatile LONG *)(p), 0, 0)
 
-/* 成功返回 1；失败返回 0，但 *out 仍可能是已经读到的原始响应体，由调用方
-   决定要不要展示。超时时看门狗会置 abort 并关掉 reqSlot 里的请求句柄。 */
+/* 成功返回 1； 失败返回 0，但 *out 仍可能是已经读到的原始响应体，由调用方 决定要不要展示。 */
 int qi_winhttp_get(const WCHAR *url, const WCHAR *headers,
                    char **out, int *plen, DWORD *status,
                    volatile LONG *abort, volatile PVOID *reqSlot,
@@ -74,8 +61,7 @@ int qi_winhttp_get(const WCHAR *url, const WCHAR *headers,
     if (reqSlot) InterlockedExchangePointer(reqSlot, hR);
 
     if (secure) {
-        /* Win7 SP1 需 KB3140245 才真正握得上手；没打补丁时 SetOption 可能
-           失败，忽略即可，不能因为一个 option 就放弃这次请求。 */
+        /* Win7 SP1 需 KB3140245 才真正握得上手； 没打补丁时 SetOption 可能 失败，忽略即可，不能因为一个 option 就放弃这次请求。 */
         proto = WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2
               | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1
               | WINHTTP_FLAG_SECURE_PROTOCOL_TLS1

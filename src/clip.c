@@ -1,15 +1,4 @@
-/* clip.c — 剪贴板历史：监听、去重、写回、持久化、自绘列表
- *
- * 官方文档关键点都落在这里：
- *   · listener 用 AddClipboardFormatListener（Vista+，Win7 可用），
- *     动态 GetProcAddress 加载，避免对头文件版本的依赖；
- *     WM_CLIPBOARDUPDATE 是 posted 消息，NOACTIVATE 窗口照样能收到。
- *   · 写回严格遵守 SetClipboardData 的内存所有权规则：
- *     GlobalAlloc(GMEM_MOVEABLE)，成功后由系统拥有，绝不 GlobalFree。
- *   · 读回按 GlobalSize 找 null terminator，不假定一定有终止符。
- *   · 自写回的通知用三重判据抑制：序列号相同 / owner 是本窗口 /
- *     内容与刚写回的相同且在 500ms 内，避免历史自己增殖。
- */
+/* clip.c — 剪贴板历史：监听、去重、写回、持久化、自绘列表 */
 #include "clip.h"
 #include "app.h"
 #include "canvas.h"
@@ -29,10 +18,10 @@
 typedef BOOL (WINAPI *PFN_ADDLISTENER)(HWND);
 typedef BOOL (WINAPI *PFN_REMLISTENER)(HWND);
 
-/* 反注册必须传注册时的原 HWND；窗口销毁后仍要能拿到它 */
+/* 反注册必须传注册时的原 HWND； 窗口销毁后仍要能拿到它 */
 static HWND g_listenerHwnd = NULL;
 
-/* ---------------- 路径与持久化 ---------------- */
+/* 路径与持久化 */
 static int clip_path(const Clip *c, WCHAR *out, size_t cap)
 {
     WCHAR app[MAX_PATH];
@@ -123,7 +112,7 @@ void clip_reload(Clip *c)
     clip_load(c);
 }
 
-/* ---------------- listener 注册 ---------------- */
+/* listener 注册 */
 void clip_detach(Clip *c)
 {
     PFN_REMLISTENER pRemove;
@@ -166,7 +155,7 @@ void clip_shutdown(Clip *c, App *a)
     if (c->u32) { FreeLibrary(c->u32); c->u32 = NULL; }
 }
 
-/* ---------------- 读 / 写系统剪贴板 ---------------- */
+/* 读 / 写系统剪贴板 */
 int clip_read_text(HWND hwnd, WCHAR *out, int cap)
 {
     HANDLE h;
@@ -243,7 +232,7 @@ int clip_set_clipboard(Clip *c, App *a, const WCHAR *s, int len)
     return ok;
 }
 
-/* ---------------- 插入 / 去重 ---------------- */
+/* 插入 / 去重 */
 static int only_space(const WCHAR *s, int len)
 {
     int i;
@@ -298,8 +287,7 @@ int clip_push_text(Clip *c, const WCHAR *s, int len)
 
 static void mark_dirty(App *a)
 {
-    /* 只在「展开且当前就是剪贴板页」时重绘；后台捕获不触发任何帧，
-       静止零重绘策略不受影响。 */
+    /* 只在「展开且当前就是剪贴板页」时重绘； 后台捕获不触发任何帧， 静止零重绘策略不受影响。 */
     if (a->anim.exp > 0.02 && cards_draw(a->ui.view) == DRAW_CLIP)
         a->dirty = 1;
 }
@@ -351,10 +339,6 @@ void clip_clear(Clip *c, App *a)
     if (a) a->dirty = 1;
 }
 
-/* ---------------- 布局：压成单行 + 按宽度截断 ----------------
-   注意：传入的 box 已由 ui.c 用「目标态标称尺寸」算出，在同一张卡内恒定。
-   早期版本传的是动画中间态 box，展开弹簧每帧改一次 box.h/box.w，
-   px 跨整数跳变、sig 每帧失效、所有条目反复二分截断 → 文字抖动。 */
 static unsigned int clip_sig(const Clip *c, int px, double w)
 {
     unsigned int h = 2166136261u;
@@ -420,8 +404,7 @@ static void clip_layout(Clip *c, App *a, ClipBox box)
             c->line[i][cp] = 0;
             c->lineLen[i] = cp;
         } else {
-            /* 二分找能放下的最大前缀，再补省略号（不要用系统 ellipsis，
-               它会在透明通道上出彩边；这里就是普通文字） */
+            /* 二分找能放下的最大前缀，再补省略号（不要用系统 ellipsis， 它会在透明通道上出彩边； 这里就是普通文字） */
             int lo = 0, hi = m, best = 0, room = maxW - ellW;
             if (room < 0) room = 0;
             while (lo <= hi) {
@@ -470,15 +453,13 @@ void clip_click(Clip *c, App *a, ClipBox box, int x, int y)
     a->dirty = 1;
 }
 
-/* ---------------- 绘制 ---------------- */
+/* 绘制 */
 void clip_draw(Clip *c, App *a, ClipBox box, double k)
 {
     Canvas *cv = &a->canvas;
     int r, end, idx;
     double tx, ty, trackX, trackY, trackH, thumbH, thumbY;
-    /* 卡片永远水平居中画在 canvas 上，所以 canvas.W/2 就是卡片中心。
-       用户要求「剪贴板要居中，相对于卡片居中」：每条文字按自身宽度
-       相对这个中心居中（align=1），不再贴着内容框左缘。 */
+    
     double centerX = (double)a->canvas.W * 0.5;
 
     clip_layout(c, a, box);
@@ -508,7 +489,7 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
         int lit = (idx == c->selected);
         int hov = (r == c->hoverRow);
         if (lit || hov) {
-            /* 淡圆底：选中比悬浮稍亮；没有边框、没有分隔线 */
+            /* 淡圆底：选中比悬浮稍亮； 没有边框、没有分隔线 */
             canvas_round(cv, tx - 3.0, yy + 2.0,
                          c->areaW - CLIP_SCROLL_W + 6.0,
                          (double)c->lineH - 4.0, 5.0,
@@ -523,8 +504,7 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
                            lit ? ACCENT_B : INK_B,
                            k * (lit ? 1.0 : 0.92));
         if (lit && font_fa_ok(&a->fonts)) {
-            /* 右端静态 check：表示「这条已回填，可直接粘贴」，
-               不做淡出动画，静止零重绘策略不变 */
+            /* 右端静态 check：表示「这条已回填，可直接粘贴」， 不做淡出动画，静止零重绘策略不变 */
             font_draw_icon(&a->fonts, cv, FA_CHECK,
                            qs_iclamp((int)(c->px * 0.72), 12, 22),
                            box.x + box.w - CLIP_PAD - CLIP_CHECK_W * 0.5,
@@ -551,7 +531,7 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
                  NOTE_THUMB_R, NOTE_THUMB_G, NOTE_THUMB_B, k * 0.55);
 }
 
-/* ---------------- 诊断 ---------------- */
+/* 诊断 */
 int clip_count(const Clip *c) { return c->count; }
 int clip_listener(const Clip *c) { return c->listenerOK; }
 int clip_captures(const Clip *c) { return c->captures; }

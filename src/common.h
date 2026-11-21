@@ -1,5 +1,4 @@
-/* common.h — 公共头：系统头、基础类型、工具函数
- * 所有模块都包含它；不依赖任何模块自己的结构，避免循环包含。 */
+/* common.h — 公共头：系统头、基础类型、工具函数 */
 #ifndef QISLAND_COMMON_H
 #define QISLAND_COMMON_H
 

@@ -1,25 +1,10 @@
-/* lunar.c — 本地农历库封装实现
- *
- * 唯一数据源：src/vendor/（两套静态数据，全部离线）
- *   · iseemoon/lunar-calendar  (Apache-2.0)  农历 / 干支 / 节气精确毫秒表 / 节日
- *   · 6tail/lunar-javascript   (MIT)         每日宜忌通书表（仅数据，规则用纯 C 重写）
- *
- * 全部计算是同步纯函数，无线程、无分配、无文件、无网络。
- *
- * 核对过的样例（与国家图书馆日历 / 上游 6tail 输出一致）：
- *   2026-11-17 → 农历十月初九、丙午年 己亥月 乙未日、距小雪5天
- *                宜「祭祀 祈福 求嗣」忌「嫁娶 进人口 入宅」
- *   2026-02-17 → 正月初一 春节（丙午年 庚寅月 壬戌日）
- *   2025-01-29 → 正月初一 春节，月柱是**丁丑**（节气月，不是农历月戊寅）
- *   2023-03-22 → 闰二月初一（闰月标识正确）
- */
+/* lunar.c — 本地农历库封装实现 */
 #include "lunar.h"
 #include "vendor/lunar_date.h"
 #include "vendor/solar_term.h"
 #include "vendor/huangli_data.h"
 
-/* 库返回 UTF-8；项目内部一律 WCHAR。每次调用立即转换，
-   因为库里若干 get_*_str 用的是函数内 static 缓冲区。 */
+/* 库返回 UTF-8； 项目内部一律 WCHAR。 */
 static void u8_to_w(const char *s, WCHAR *out, int cap)
 {
     int n;
@@ -42,7 +27,7 @@ static long daynum(int y, int m, int d)
     return (long)(era * 146097 + (long)doe - 719468);
 }
 
-/* ---------------- 60 甲子 ---------------- */
+/* 60 甲子 */
 static const WCHAR *const kJiaZi[60] = {
     L"甲子", L"乙丑", L"丙寅", L"丁卯", L"戊辰", L"己巳",
     L"庚午", L"辛未", L"壬申", L"癸酉", L"甲戌", L"乙亥",
@@ -66,15 +51,6 @@ static int jiazi_index(const WCHAR *gz)
     return -1;
 }
 
-/* ---------------- 节气月柱（月建） ----------------
-   上游 6tail 的 getMonthInGanZhi() 按**节气**换月、年干以立春为界，
-   不是按农历月。用 vendored 库的精确节气时刻定边界：
-     小寒→丑(11) 立春→寅(0) 惊蛰→卯(1) 清明→辰(2) 立夏→巳(3)
-     芒种→午(4) 小暑→未(5) 立秋→申(6) 白露→酉(7) 寒露→戌(8)
-     立冬→亥(9) 大雪→子(10)
-   k 是从寅月起的序号；月支 = (2+k)%12；月干 = 五虎遁 (年干*2+2+k)%10。
-   例：2025-01-29 在立春前、小寒后 → 2024 甲辰年 + 丑月 → 丁丑月
-       （库的农历月口径会给出戊寅月，与通书表不匹配）。 */
 static long term_daynum(int y, int n)
 {
     LUNAR_DATE td;
@@ -84,9 +60,7 @@ static long term_daynum(int y, int n)
 
 static void month_pillar_by_term(int y, int m, int d, WCHAR *out, int cap)
 {
-    /* 必须按一年内的**时间先后**排列：小寒(1月) → 立春 → ... → 大雪(12月)。
-       k 是从寅月起算的序号，与数组下标不同；早先按下标当 k 会把所有
-       月份都算成丑月，宜忌表会整片查错。 */
+    /* 必须按一年内的**时间先后**排列：小寒(1月) → 立春 → ... → 大雪(12月)。 */
     static const struct { int term; int k; } kJie[12] = {
         { 0, 11 }, { 2, 0 }, { 4, 1 }, { 6, 2 }, { 8, 3 }, { 10, 4 },
         {12,  5 }, {14, 6 }, {16, 7 }, {18, 8 }, {20, 9 }, { 22, 10 }
@@ -112,12 +86,6 @@ static void month_pillar_by_term(int y, int m, int d, WCHAR *out, int cap)
     out[cap - 1] = 0;
 }
 
-/* ---------------- 每日宜忌：通书表离线查表 ----------------
-   照搬上游 LunarUtil.getDayYi / getDayJi 的查表规则（纯 C 重写）：
-     表由若干 `DD=MMMM:YY,JJ` 记录紧密拼接，记录间无分隔符；
-     下一条记录的 DD 紧贴在上一条 JJ 尾部，故 left 取到下一个 '='
-     前 2 字符处截断。DD/MM 是 2 位大写 hex 的甲子序号，YY/JJ 是
-     2 位 hex 的 HL_WORDS 索引串。 */
 static void hex2(int n, char out[3])
 {
     static const char H[] = "0123456789ABCDEF";
@@ -212,7 +180,7 @@ static void fill_terms(int y, int m, int d, LunarInfo *o)
     o->termToday = 0;
     o->daysToNextTerm = 0;
 
-    /* 库的节气序号：0=小寒 ... 20=立冬 21=小雪 ... 23=冬至 */
+    /* 库的节气序号：0=小寒 ... 20=立冬 21=小雪 ... */
     for (n = 0; n < 24; n++) {
         const char *name = get_day_of_solar_term((uint32_t)y, (uint8_t)n, &td);
         long t;
@@ -269,7 +237,7 @@ int lunar_get(int y, int m, int d, LunarInfo *o)
     u8_to_w(get_year_ganzhi_str(ld.year),  o->yearGZ, 8);
     u8_to_w(get_animal_str(ld.year), o->animal, 8);
 
-    /* 日柱用库的甲戌日锚点；月柱用节气月(月建)，与通书表口径一致 */
+    /* 日柱用库的甲戌日锚点； 月柱用节气月(月建)，与通书表口径一致 */
     u8_to_w(get_day_ganzhi_str((int32_t)y, (uint8_t)m, (uint8_t)d),
             dayGZ, 8);
     _snwprintf(o->dayGZ, 8, L"%s", dayGZ); o->dayGZ[7] = 0;
@@ -279,7 +247,7 @@ int lunar_get(int y, int m, int d, LunarInfo *o)
     /* 每日宜忌：各取前 3 条 */
     almanac_lookup(dayGZ, monthGZ, o->yi, o->ji, &o->yiN, &o->jiN);
 
-    /* 节日：公历固定节日优先，其次农历节日。只取一个，避免撑爆左栏。 */
+    
     s = get_gre_festival((uint8_t)m, (uint8_t)d);
     if (!s) s = get_lunar_festival(&ld);
     if (s) {

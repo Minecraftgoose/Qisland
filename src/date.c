@@ -1,26 +1,9 @@
-/* date.c — 第二张中卡片：带秒的时钟 + 一整组历法日期
- *
- * 纯 Win32 / 纯 C，无运行时分配、无状态、无定时器、无文件、无网络。
- *   · 时间源：GetLocalTime（Win7 原生，跟随用户时区）
- *   · 农历 / 闰月 / 干支 / 生肖 / 节日 / 24 节气 / 每日宜忌：
- *     全部来自 src/vendor/ 的两套离线静态表，经 src/lunar.c 同步封装。
- *   · ISO 周数、年内第几天 / 剩余天数：本地 days_from_civil 计算
- *   · 文字全部走 font_draw_label（全局 OPPO Sans、灰度抗锯齿），
- *     数字时钟逐字形绘制，字形缓存长期稳定，秒变化不会每帧冲掉缓存。
- *
- * 版式按用户给的 HTML「紧凑型长条屏幕排版」：
- *   grid 1.2fr | 1px | 1fr，两侧 padding 24px，gap 20px；
- *   左块 .time / .date-row / .almanac-row，右块 .lunar-year / .lunar-date /
- *   .ganzhi / .extra-info；两块各自 flex-column + justify-content:center，
- *   即**整组垂直居中**，不再把每一行钉死在 H 的固定比例上。
- *   只有 .label.yi / .label.ji 带色，事项与其它信息都是中性灰白。
- * 排版基准用目标态标称尺寸 W0/H0，动画期间文字只平移淡入、不重排。
- */
+/* date.c — 第二张中卡片：带秒的时钟 + 一整组历法日期 */
 #include "date.h"
 #include "config.h"
 #include "lunar.h"
 
-/* ---------------- 公历 ↔ 天数（Hinnant civil 算法，避开 time_t / 时区） ---------------- */
+/* 公历 ↔ 天数（Hinnant civil 算法，避开 time_t / 时区） */
 static long days_from_civil(int y, int m, int d)
 {
     long era, doe;
@@ -40,7 +23,7 @@ static int is_leap(int y)
 
 static int iso_weekday_from_days(long z)
 {
-    /* 1970-01-01 = 周四(4)；ISO：1=周一 .. 7=周日 */
+    /* 1970-01-01 = 周四(4)； ISO：1=周一 .. */
     long w = ((z % 7) + 7) % 7;
     return (int)(((w + 3) % 7) + 1);
 }
@@ -65,7 +48,7 @@ static const WCHAR *kWeek[7] = {
     L"日",L"一",L"二",L"三",L"四",L"五",L"六"
 };
 
-/* ---------------- 时钟：逐字形绘制，字形缓存不随秒变化抖动 ---------------- */
+/* 时钟：逐字形绘制，字形缓存不随秒变化抖动 */
 static void draw_clock(FontSet *f, Canvas *c, int hh, int mm, int ss,
                        int px, double x, double y, double k)
 {
@@ -99,10 +82,6 @@ static void draw_clock(FontSet *f, Canvas *c, int hh, int mm, int ss,
     }
 }
 
-/* ---------------- 整组垂直居中 ----------------
-   HTML 里 .left-block / .right-block 都是 justify-content:center，
-   两栏各自作为一个整体居中，而不是每一行钉死在 H 的固定比例上。
-   传入每行高度与「该行之后的间距」，算出总高后居中，返回每行中心 y。 */
 static void layout_rows(const double *h, const double *gapAfter,
                         int n, double H, double *outY)
 {
@@ -117,10 +96,6 @@ static void layout_rows(const double *h, const double *gapAfter,
     }
 }
 
-/* ---------------- 节日：并进日期行，不新开一行 ----------------
-   HTML 的 .date-row 只有「公历 + 星期·第N周」。节日仍保留（用户要过
-   「一大堆日期」），但降级成同一行末尾的附属：左对齐、按剩余宽度逐级
-   缩字号，实在放不下就逐字截断，绝不换行、绝不压到分隔线。 */
 static void draw_festival(FontSet *f, Canvas *c, const WCHAR *s,
                           double x, double maxW, double y,
                           int basePx, int minPx, double k)
@@ -143,10 +118,6 @@ static void draw_festival(FontSet *f, Canvas *c, const WCHAR *s,
                         ACCENT_R, ACCENT_G, ACCENT_B, k * 0.95);
 }
 
-/* ---------------- 宜 / 忌：只有标签带色，事项中性 ----------------
-   照 HTML：.label.yi 绿、.label.ji 红，.almanac-text 一律 #ced4da。
-   上一版整行带色，两行彩色块压在底部显得乱；改回只有两个标签有色，
-   事项与右栏辅助信息同档次灰白，整页就安静了。标签与事项同字号。 */
 static void draw_yiji(FontSet *f, Canvas *c, const WCHAR *tag,
                       WCHAR items[3][16], int n,
                       double x, double y, double maxW, int basePx,
@@ -185,7 +156,7 @@ static void draw_yiji(FontSet *f, Canvas *c, const WCHAR *tag,
                     k * 0.92);
 }
 
-/* ---------------- 主绘制 ---------------- */
+/* 主绘制 */
 void date_draw(FontSet *f, Canvas *c, double W, double H, double k)
 {
     SYSTEMTIME st;
@@ -237,11 +208,11 @@ void date_draw(FontSet *f, Canvas *c, double W, double H, double k)
     layout_rows(h, g, 5, H, y);
     yYear = y[0]; yLunar = y[1]; yGZ = y[2]; yTerm = y[3]; yCount = y[4];
 
-    /* .divider：1px 极淡竖线，近全高；不做装饰框 */
+    /* .divider：1px 极淡竖线，近全高； 不做装饰框 */
     canvas_round(c, sepX, H * 0.075, 1.2, H * 0.850, 0.6,
                  TRACK_R, TRACK_G, TRACK_B, k * 0.85);
 
-    /* ================= 左栏 ================= */
+    /* 左栏 */
     draw_clock(f, c, st.wHour, st.wMinute, st.wSecond,
                clockPx, leftX, yClock, k);
 
@@ -274,7 +245,7 @@ void date_draw(FontSet *f, Canvas *c, double W, double H, double k)
                   DATE_JI_R, DATE_JI_G, DATE_JI_B, k);
     }
 
-    /* ================= 右栏 ================= */
+    /* 右栏 */
     if (live) {
         /* .lunar-year：最淡一档 */
         _snwprintf(buf, 96, L"%s年 · %s年", li.yearGZ, li.animal);
@@ -290,7 +261,7 @@ void date_draw(FontSet *f, Canvas *c, double W, double H, double k)
         font_draw_label(f, c, buf, smallPx, rightX, yGZ, 0,
                         DIM_R, DIM_G, DIM_B, k * 0.92);
 
-        /* 日历同款口径：节气名只写在交节那一格；11/18 是「距小雪4天」。 */
+        /* 日历同款口径：节气名只写在交节那一格； 11/18 是「距小雪4天」。 */
         if (li.nextTerm[0]) {
             if (li.termToday && li.curTerm[0])
                 _snwprintf(buf, 96, L"%s · 距%s%d天",

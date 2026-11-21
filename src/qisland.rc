@@ -1,17 +1,4 @@
-/* qisland.rc — 程序图标 + 文件版本资源 + 进程清单（唯一的资源脚本）
- *
- * 素材：用户「圆形图标文件包」中**中间黑**的那张（src/qisland.ico）。
- * 由 build.bat 用 windres 编成 qisland_res.o 再链接进 exe，
- * 资源管理器 / Alt+Tab / 窗口类图标 / 系统托盘图标都用它。
- * ID 与 config.h 的 IDI_QISLAND 一致。
- *
- * 版本号唯一来源：version.h（QI_VERSION_STR / QI_VERSION_NUM = 0.3.2）。
- * VS_VERSION_INFO 让「文件属性 → 详细信息」和安装包的版本信息一致。
- *
- * 0.3.1 起内嵌 qisland.manifest（资源类型 24 = RT_MANIFEST，ID 1 =
- * CREATEPROCESS_MANIFEST_RESOURCE_ID）：声明 PerMonitorV2 DPI 感知。
- * 用数字类型而不是 RT_MANIFEST 宏，windres 不必再包含 winuser.h。
- */
+/* qisland.rc — 程序图标 + 文件版本资源 + 进程清单（唯一的资源脚本） */
 #include "version.h"
 
 1 ICON "qisland.ico"

@@ -1,10 +1,4 @@
-/* input.c — 便签输入：焦点、键盘、IME
- *
- * 中文输入走 WM_IME_COMPOSITION 的 GCS_RESULTSTR（ImmGetCompositionStringW），
- * 并把候选框位置设到便签光标处（ImmSetCompositionWindow / ImmSetCandidateWindow）。
- * 处理了 resultstr 的消息不再交给 DefWindowProc，避免 IME_CHAR 重复插入；
- * WM_IME_CHAR 一律吞掉。WM_CHAR 只负责 ASCII 与控制字符。
- */
+/* input.c — 便签输入：焦点、键盘、IME */
 #include "input.h"
 #include "app.h"
 #include "config.h"
@@ -106,8 +100,7 @@ static void paste(App *a)
         if (p) {
             int n = (int)wcslen(p);
             if (n > NOTE_MAX) n = NOTE_MAX;
-            /* note_paste 走 stb_textedit_paste，会自动替换当前选区，
-               并把 CRLF / TAB 归一化；不再复制全文。 */
+            /* note_paste 走 stb_textedit_paste，会自动替换当前选区， 并把 CRLF / TAB 归一化； 不再复制全文。 */
             note_paste(&a->note, p, n);
             changed(a);
             GlobalUnlock(h);
@@ -146,7 +139,7 @@ int input_message(App *a, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             changed(a);
             ime_pos(a);
         }
-        return 1;                     /* 不交给 DefWindowProc，避免 IME_CHAR 重复 */
+        return 1;                     
     }
     case WM_IME_ENDCOMPOSITION:
         return 0;

@@ -1,25 +1,11 @@
-/* balloon.c — Win7 托盘气泡消息监听器
- *
- * 官方结论：**能收到，但只能旁观**。NIF_INFO 的 NIN_BALLOON* 回调只发给注册
- * 图标的那个 hWnd，不广播给第三方；所以本模块用 SetWinEventHook 观察 explorer
- * 创建的气泡窗口（tooltips_class32 + TTS_BALLOON）：
- *   · WM_GETTEXT 读正文 szInfo；
- *   · TTM_GETTITLE(WM_USER+35) 读标题 szInfoTitle 与标题图标 uTitleBitmap。
- * 完整文档依据见 balloon.h 顶部。
- *
- * 线程/输入安全：WINEVENT_OUTOFCONTEXT 的回调在注册线程的消息循环里被投递，
- * 不注入目标进程、不进钩子链、不拦截输入；回调只做 4 次本地查询 + PostMessage，
- * 不碰 App / Canvas / Ui / Notify，不置脏。没有后台线程、没有 500ms 轮询。
- * 标题读取在主线程做，用 SMTO_ABORTIFHUNG + 200ms 超时，explorer 卡住也不拖 UI。
- */
+/* balloon.c — Win7 托盘气泡消息监听器 */
 #include "balloon.h"
 #include "app.h"
 #include "config.h"
 #include "icons.h"
 #include "notify.h"
 
-/* 系统提示图标资源 ID：Win32 标准数值。不直接用 IDI_* 宏，因为它在部分
-   SDK 里被定义成 MAKEINTRESOURCE 指针，赋给 int 会产生类型歧义。 */
+/* 系统提示图标资源 ID：Win32 标准数值。 不直接用 IDI_* 宏，因为它在部分 SDK 里被定义成 MAKEINTRESOURCE 指针，赋给 int 会产生类型歧义。 */
 #define BALLOON_IDI_INFORMATION 32516
 #define BALLOON_IDI_WARNING     32515
 #define BALLOON_IDI_ERROR       32513
@@ -39,7 +25,7 @@ static int is_balloon_class(const WCHAR *cls)
     return 0;
 }
 
-/* ---------------- WinEvent 回调：只过滤，只 PostMessage ---------------- */
+/* WinEvent 回调：只过滤，只 PostMessage */
 static void CALLBACK balloon_win_event(HWINEVENTHOOK hook, DWORD event,
                                        HWND hwnd, LONG idObject, LONG idChild,
                                        DWORD idEventThread, DWORD msEventTime)
@@ -50,17 +36,15 @@ static void CALLBACK balloon_win_event(HWINEVENTHOOK hook, DWORD event,
 
     (void)hook; (void)idEventThread; (void)msEventTime;
     if (!g_target || !hwnd || !IsWindow(hwnd)) return;
-    /* 官方：EVENT_OBJECT_CREATE/SHOW 对窗口对象时 idObject = OBJID_WINDOW、
-       idChild = CHILDID_SELF（社区 Win7 实测脚本也用 `if (idObject) return`）。 */
+    
     if (idObject != OBJID_WINDOW || idChild != CHILDID_SELF) return;
     if (!GetClassNameW(hwnd, cls, 96) || !is_balloon_class(cls)) return;
 
-    /* TTS_BALLOON = 0x40（官方 Tooltip Styles，版本 5.80）：把普通 tooltip
-       排除掉，只认托盘气泡的卡通气球外观。 */
+    /* TTS_BALLOON = 0x40（官方 Tooltip Styles，版本 5.80）：把普通 tooltip 排除掉，只认托盘气泡的卡通气球外观。 */
     style = (LONG)GetWindowLongPtrW(hwnd, GWL_STYLE);
     if (!(style & BALLOON_TTS_BALLOON)) return;
 
-    /* 气泡由 explorer 显示；真机按 Shell_TrayWnd 的 pid 收窄，既降噪又防误报。 */
+    /* 气泡由 explorer 显示； 真机按 Shell_TrayWnd 的 pid 收窄，既降噪又防误报。 */
     if (g_trayPid) {
         GetWindowThreadProcessId(hwnd, &pid);
         if (pid != g_trayPid) return;
@@ -70,7 +54,7 @@ static void CALLBACK balloon_win_event(HWINEVENTHOOK hook, DWORD event,
     PostMessageW(g_target, WM_APP_BALLOON_SIGNAL, (WPARAM)event, (LPARAM)hwnd);
 }
 
-/* ---------------- 主线程：读气泡文本 ---------------- */
+/* 主线程：读气泡文本 */
 int balloon_read_text(HWND hwnd, WCHAR *out, int cap)
 {
     DWORD_PTR n = 0, got = 0;
@@ -79,9 +63,7 @@ int balloon_read_text(HWND hwnd, WCHAR *out, int cap)
     if (out && cap > 0) out[0] = 0;
     if (!out || cap <= 0 || !hwnd || !IsWindow(hwnd)) return 0;
 
-    /* 路径 1：WM_GETTEXTLENGTH + WM_GETTEXT。社区 Win7 实测：气泡文本要用
-       这两个消息取，GetWindowText 常为空。SMTO_ABORTIFHUNG + 超时保证
-       explorer 卡住也不会把主线程拖死。系统对 < WM_USER 的消息做跨进程封送。 */
+    
     r = SendMessageTimeoutW(hwnd, WM_GETTEXTLENGTH, 0, 0,
                             SMTO_ABORTIFHUNG, BALLOON_SEND_TIMEOUT_MS, &n);
     if (r && n > 0 && n < 4096) {
@@ -104,20 +86,6 @@ int balloon_read_text(HWND hwnd, WCHAR *out, int cap)
     return out[0] ? 1 : 0;
 }
 
-/* ---------------- 主线程：读气泡标题 szInfoTitle + 标题图标 ----------------
-   官方：TTM_GETTITLE(WM_USER+35) 的 lParam = TTGETTITLE*，返回
-   { uTitleBitmap（图标编号）, cch（标题字符数）, pszTitle（标题串） }。
-   陷阱：该消息 >= WM_USER，系统**不封送指针**（官方明确只对
-   0..WM_USER-1 的系统消息自动 marshal）。气泡窗口属于 explorer.exe，
-   直接把本进程指针 SendMessage 过去，控件会拿它当自己地址空间的地址，
-   轻则读空、重则 explorer 崩。所以：
-     VirtualAllocEx 在 explorer 进程里分配「结构 + WCHAR 缓冲」
-     → WriteProcessMemory 初始化（pszTitle 指向远程缓冲）
-     → SendMessageTimeout 传**远程地址数值**（>=WM_USER 不封送，正好原样送达）
-     → ReadProcessMemory 读回结构与缓冲。
-   兼容控件的两种实现：把标题拷进我们给的缓冲，或把 pszTitle 改成自己内部指针。
-   全链路 SMTO_ABORTIFHUNG + 200ms 超时；任何一步失败都静默回退，不崩不卡。
-   同进程窗口走本地路径，不需要 OpenProcess。 */
 int balloon_read_title(HWND hwnd, WCHAR *out, int cap, UINT *iconOut)
 {
     DWORD pid = 0, i;
@@ -198,10 +166,6 @@ done:
     return ok;
 }
 
-/* uTitleBitmap → 系统共享图标 HICON。
-   注意：> TTI_ERROR_LARGE 时官方说是 HICON，但那个句柄属于 explorer 进程，
-   跨进程无效，一律忽略回退 FA 消息图标。LoadIcon(NULL,...) 返回的是系统
-   共享图标，不需要也不能 DestroyIcon，与 notify.h「模块不负责销毁」一致。 */
 static HICON balloon_title_hicon(UINT icon)
 {
     int idi;
@@ -217,7 +181,7 @@ static HICON balloon_title_hicon(UINT icon)
     return LoadIconW(NULL, MAKEINTRESOURCEW(idi));
 }
 
-/* ---------------- 主线程：信号 → 通知 ---------------- */
+/* 主线程：信号 → 通知 */
 void balloon_on_signal(App *a, DWORD event, HWND hwnd)
 {
     Balloon *b = &a->balloon;
@@ -259,7 +223,7 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
 
     text[0] = 0;
     if (!balloon_read_text(hwnd, text, BALLOON_TEXT_MAX + 1)) b->textFails++;
-    /* 通知详情是单行：把换行/制表压成空格，避免画到卡片外面 */
+    
     for (i = 0; text[i]; i++)
         if (text[i] == L'\r' || text[i] == L'\n' || text[i] == L'\t')
             text[i] = L' ';
@@ -267,8 +231,7 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
     wcsncpy(b->lastText, text, BALLOON_TEXT_MAX);
     b->lastText[BALLOON_TEXT_MAX] = 0;
 
-    /* 标题 szInfoTitle：应用自己填的标题文本（如 "Greenshot"），不是系统
-       反查的 exe 名。读得到就用它当程序名，读不到才退回「托盘消息」。 */
+    /* 标题 szInfoTitle：应用自己填的标题文本（如 "Greenshot"），不是系统 反查的 exe 名。 读得到就用它当程序名，读不到才退回「托盘消息」。 */
     title[0] = 0;
     if (balloon_read_title(hwnd, title, BALLOON_TITLE_MAX + 1, &titleIcon)) {
         b->titleHits++;
@@ -282,7 +245,7 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
         b->lastTitleIcon = 0;
     }
 
-    /* 详情 = 真实读到的 szInfo；读不到就只给「有新消息」信号，不编造正文。 */
+    /* 详情 = 真实读到的 szInfo； 读不到就只给「有新消息」信号，不编造正文。 */
     {
         const WCHAR *app = title[0] ? title : BALLOON_APP_NAME;
         const WCHAR *detail = text[0] ? text : BALLOON_NO_TEXT;
@@ -297,7 +260,7 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
     b->hits++;
 }
 
-/* ---------------- 生命周期 ---------------- */
+/* 生命周期 */
 void balloon_init(App *a)
 {
     Balloon *b = &a->balloon;
@@ -336,7 +299,7 @@ void balloon_shutdown(App *a)
     g_trayPid = 0;
 }
 
-/* ---------------- 只读查询 ---------------- */
+/* 只读查询 */
 int          balloon_enabled(const App *a)     { return a->balloon.enabled; }
 int          balloon_hook_ok(const App *a)     { return a->balloon.hookOk; }
 int          balloon_events(const App *a)      { return a->balloon.events; }

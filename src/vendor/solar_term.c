@@ -1,34 +1,20 @@
-/* Qisland vendored copy — MODIFIED (changes listed in vendor/NOTICE.txt):
- *   - const-corrected the SOLAR_TERM_TIMES lookup (-Wdiscarded-qualifiers)
- * Upstream: https://github.com/iseemoon/lunar-calendar  (Apache-2.0)
- */
-/**
- * @file solar_term.c
- *
- */
-/*********************
- *      INCLUDES
- *********************/
+/* Qisland vendored copy — MODIFIED (changes listed in vendor/NOTICE.txt): */
+/* @file solar_term.c */
+/* INCLUDES */
 #include "solar_term.h"
 #include <stdio.h>
 #include <time.h>
 
-/**********************
- *      TYPEDEFS
- **********************/
+/* TYPEDEFS */
 
 typedef struct _SOLAR_TERM_TIME {
     int32_t   year;
     int64_t   times[24];
 } SOLAR_TERM_TIME;
 
-/**********************
- *  STATIC PROTOTYPES
- **********************/
+/* STATIC PROTOTYPES */
 
-/**********************
- *  STATIC VARIABLES
- **********************/
+/* STATIC VARIABLES */
 
 // 节气的中文描述
 const char * SOLAR_TERM_NAME[] = {
@@ -1241,27 +1227,12 @@ const SOLAR_TERM_TIME SOLAR_TERM_TIMES[] = {
   }},
 };
 
-
 const char * get_day_of_solar_term(uint32_t y, uint8_t n, LUNAR_DATE * solar_date)
 {
     if (y >= 1900 && y < 2100 && n < 24)
     {
         const SOLAR_TERM_TIME * item = &SOLAR_TERM_TIMES[y - 1900];
-        /* Qisland patch: upstream used localtime(), which makes a solar
-           term's calendar day drift with the user's timezone. Chinese
-           calendar terms are defined on UTC+8 (Beijing standard time), so
-           convert the epoch-millisecond value with pure integer math:
-           no CRT timezone dependency, no gmtime() NULL for pre-1970 dates,
-           and no 32-bit time_t overflow for years up to 2099.
-           2026 冬至 is UTC 12/21 20:49 but 12/22 in UTC+8 -- a real
-           one-day difference, so this is not cosmetic.
-
-           Patch fix (2nd round): Hinnant's civil_from_days expects z
-           counted from 0000-03-01, while Unix epoch days are counted from
-           1970-01-01. The missing +719468 made every year come out as
-           0056, so ALL terms looked "already passed": the date card then
-           showed 「距小寒0天」 and the month pillar collapsed to 子月
-           (庚子月) all year round. Keep the offset. */
+        
         long long ms = (long long)item->times[n] + 8LL * 3600 * 1000;
         long long z  = ms / 86400000LL;
         long long era;

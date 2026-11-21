@@ -1,21 +1,4 @@
-/* font.h — 字体与图标渲染（私有字体 + 4x4 面积覆盖率超采样）
- *
- * 官方依据：
- *   AddFontResourceExW(FR_PRIVATE) 让字体仅本进程可用，无需安装到系统，
- *   进程退出自动移除；RemoveFontResourceExW 需以相同标志配对。
- *   CreateFontW 的 ANTIALIASED_QUALITY 为灰度抗锯齿（ClearType 次像素
- *   渲染在透明通道上会出彩边，不用）。
- *   Font Awesome 自托管文档：Solid Free = fa-solid-900.ttf，CSS 家族
- *   'Font Awesome 6 Free'；TTF nameID=1/4 是 'Font Awesome 6 Free Solid'，
- *   GDI 的字体映射器匹配 nameID=1/4，故优先用它。
- *
- *   OPPO Sans 4.0：同样以 FR_PRIVATE 私有加载，作为**全局正文家族**
- *   （拉丁 / 数字 / 中文统一）。TTF nameID=1/4 均为 'OPPO Sans 4.0'，
- *   nameID=16 为空，所以 GDI 直接用 nameID=1 的名字即可。
- *   依 OPPO Sans Fonts License Agreement：不得修改字体、须保留版权声明与
- *   协议全文、须在软件中显著声明使用了该字体。故 assets 里是原始 TTF，
- *   许可全文与署名放在两份 README 顶部。
- */
+/* font.h — 字体与图标渲染（私有字体 + 4x4 面积覆盖率超采样） */
 #ifndef QISLAND_FONT_H
 #define QISLAND_FONT_H
 
@@ -23,8 +6,7 @@
 #include "canvas.h"
 
 #define GLYPH_CACHE_MAX 96
-/* 便签正文放到 26px 后，4 倍字号的整行 DIB 宽度会超过 1024，
-   不加大就会把行尾直接截掉。4096 足够放下 30+ 个全角字。 */
+/* 便签正文放到 26px 后，4 倍字号的整行 DIB 宽度会超过 1024， 不加大就会把行尾直接截掉。 4096 足够放下 30+ 个全角字。 */
 #define FONT_TMP_W      4096
 #define FONT_TMP_H      640
 
@@ -60,7 +42,7 @@ typedef struct {
 int  font_init(FontSet *f, double u);
 void font_shutdown(FontSet *f);
 
-/* 单码点 FA 图标；x/y 为输出左上角（设备像素），align 0左 1中 2右 */
+/* 单码点 FA 图标； x/y 为输出左上角（设备像素），align 0左 1中 2右 */
 void font_draw_icon(FontSet *f, Canvas *c, unsigned int cp, int px,
                     double x, double y, int align,
                     int cr, int cg, int cb, double k);
@@ -68,11 +50,11 @@ void font_draw_icon(FontSet *f, Canvas *c, unsigned int cp, int px,
 void font_draw_text(FontSet *f, Canvas *c, const WCHAR *s, int px,
                     double x, double y, int align,
                     int cr, int cg, int cb, double k);
-/* 中文标签：走全局字体（OPPO Sans 4.0），避免 PUA/方框 */
+
 void font_draw_label(FontSet *f, Canvas *c, const WCHAR *s, int px,
                      double x, double y, int align,
                      int cr, int cg, int cb, double k);
-/* 便签正文：常规字重 + 全局字体（kind 3）。用户输入的内容，不是界面标签 */
+/* 便签正文：常规字重 + 全局字体（kind 3）。 用户输入的内容，不是界面标签 */
 void font_draw_note(FontSet *f, Canvas *c, const WCHAR *s, int px,
                     double x, double y, int align,
                     int cr, int cg, int cb, double k);

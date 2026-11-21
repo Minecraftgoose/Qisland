@@ -1,6 +1,4 @@
-/* app.h — 程序运行时状态聚合。
- * 各模块头文件只用 App* 前向声明（见 common.h），不包含本文件，
- * 因此不存在循环依赖；实现文件包含本文件即可拿到完整状态。 */
+/* app.h — 程序运行时状态聚合。 */
 #ifndef QISLAND_APP_H
 #define QISLAND_APP_H
 

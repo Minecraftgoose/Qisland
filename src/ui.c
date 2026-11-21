@@ -1,25 +1,4 @@
-/* ui.c — 界面文字只出现在 AGENTS.md 封闭清单登记的位置
- *
- * 计时器页：「倒计时」标题 +「滚轮调整时间」一行；
- * 便签页：「便签」；剪贴板历史页：「剪贴板」；
- * 性能监测页：标签与硬件信息；剪贴板条目 / 通知文字是数据本身。
- * 以上字符串均由用户逐字点名并登记进封闭清单，不新增任何说明、
- * placeholder 或按钮文字。
- *
- * 布局按 3.html 的示意：
- *   最左竖条 = 滚轮热区；左侧 2x2 四个图标 =
- *     隐藏 / 亮度 / 音量 / taskmgr（右下，即红箭头指的位置）；
- *   右侧 =「倒计时」标题 +「滚轮调整时间」+ HH:MM:SS 读数 + 启动 / 重置。
- *   胶囊态（收起）左侧是时钟，倒计时进行时右侧同时显示剩余时间。
- * 冒号用两个圆点画（符号，不是文字）；悬浮在 HH/MM/SS 某一段上时
- * 该段淡底高亮，滚轮按段调整时间。
- * 按钮下方不再画任何滑动条；音量和亮度按钮本身仍可点击或左右拖动调节。
- * 第二张中卡片（idx 1）是日期时钟：带秒的时钟 + 一整组历法日期，
- * 只读展示、没有按钮；第三张中卡片（idx 2）是便签：右侧整块变成文本区，没有输入框边框、
- * 没有提示文字、没有系统滚动条；内容溢出时右缘出现极淡的圆头指示条。
- * 所有控件用 SDF 覆盖率叠加，天然被圆角裁切；图标用 font 模块的
- * 4x4 面积覆盖率超采样，保证无锯齿。
- */
+/* ui.c — 界面文字只出现在 AGENTS.md 封闭清单登记的位置 */
 #include "ui.h"
 #include "app.h"
 #include "config.h"
@@ -55,8 +34,7 @@ typedef struct {
     int iconPx, numPx, titlePx;
 } Boxes;
 
-/* 按卡片表的渲染器分派，不再靠 view 编号区间硬判。
-   新增的留空卡（DRAW_EMPTY）什么都不画，也不注册可点控件。 */
+/* 按卡片表的渲染器分派，不再靠 view 编号区间硬判。 新增的留空卡（DRAW_EMPTY）什么都不画，也不注册可点控件。 */
 static int timer_view(int v) { return cards_draw(v) == DRAW_TIMER; }
 static int note_view(int v)  { return cards_draw(v) == DRAW_NOTE;  }
 static int perf_view(int v)  { return cards_draw(v) == DRAW_PERF;  }
@@ -65,20 +43,13 @@ static int clip_view(int v)  { return cards_draw(v) == DRAW_CLIP; }
 static int date_view(int v)  { return cards_draw(v) == DRAW_DATE; }
 static int settings_view(int v) { return cards_draw(v) == DRAW_SETTINGS; }
 
-/* 横排圆点从最后一个竖点起接管：**只有一条横向组 GRP_H**，共 3 个点
-   （横1 性能 / 横2 大卡片 / 横3 超大卡片 = 最后一点）。
-   大卡片与超大卡片都在这一排里，不拆第二个组。
-   进入横向阶段后竖列圆点整列不画。
-   竖点现在 5 个（加卡即加点）：GRP_H slot0（性能卡）兼任竖④，vdot=3，
-   仍留在竖向阶段显示竖列点；slot1 / slot2 同为 vdot4，共用竖⑤。 */
 static int hdots_on(int v)
 {
     return cards_is_hgroup(cards_group(v)) &&
            cards_vdot(v) == CARDS_VDOTS - 1;
 }
 
-/* 竖点间距：wheel 区高 = 0.80H，4 个点跨 0.55 → pitch = 0.80H*0.55/3。
-   横点直接用这个 pitch，超大卡片上钳到上限保持「密集」。 */
+/* 竖点间距：wheel 区高 = 0.80H，4 个点跨 0.55 → pitch = 0.80H*0.55/3。 横点直接用这个 pitch，超大卡片上钳到上限保持「密集」。 */
 double ui_dots_pitch(double cardH, double u)
 {
     double p = cardH * 0.80 * (HDOTS_P1 - HDOTS_P0) /
@@ -116,8 +87,6 @@ static int hdots_slot(const Boxes *b, int n, int x)
     return best;
 }
 
-/* settings.c 的几何用 SBox（与 DBox 同为 {x,y,w,h} 四个 double），
-   这里显式转换，避免两个结构类型直接混用。 */
 static DBox s2d(SBox s)
 {
     DBox d;
@@ -137,11 +106,7 @@ static void compute(App *a, double W, double H, Boxes *b)
 {
     double L = ((double)a->canvas.W - W) * 0.5;
     double gx, cw, ch, gy, gapx, gapy, tx, tw, gap, nw;
-    /* 文字排版一律用「目标态标称尺寸」，不用动画中间态 W/H。
-       anim_geometry() 在展开弹簧(8.25% 过冲)和切档插值(SIZE_TAU)期间
-       每帧都变；若拿它算字号，px 会跨整数反复跳 → 字形重新光栅化、
-       字宽非线性变化、截断签名失效 → 每帧重排文字，看起来就是「抖」。
-       W0/H0 在同一张卡内恒定，动画期间文字只整体平移 + 淡入。 */
+    
     double tw0, th0, tr0, W0, H0, L0;
 
     anim_view_size(&a->anim, a->ui.view, &tw0, &th0, &tr0);
@@ -154,8 +119,7 @@ static void compute(App *a, double W, double H, Boxes *b)
     /* 最左竖条：滚轮切换热区 */
     b->wheel = (DBox){ L + 0.016 * W, H * 0.10, 0.078 * W, H * 0.80 };
 
-    /* 2x2 图标按钮：与 3.html 的四格一一对应
-       左上隐藏 / 右上亮度 / 左下音量 / 右下 taskmgr（红箭头所指） */
+    /* 2x2 图标按钮：与 3.html 的四格一一对应 左上隐藏 / 右上亮度 / 左下音量 / 右下 taskmgr（红箭头所指） */
     gx = L + 0.115 * W; cw = 0.125 * W; ch = H * 0.31;
     gy = H * 0.13; gapx = 0.018 * W; gapy = H * 0.07;
     b->hide = (DBox){ gx,             gy,             cw, ch };
@@ -163,9 +127,7 @@ static void compute(App *a, double W, double H, Boxes *b)
     b->vol  = (DBox){ gx,             gy + ch + gapy, cw, ch };
     b->task = (DBox){ gx + cw + gapx, gy + ch + gapy, cw, ch };
 
-    /* 标题 / 提示 / 数字 / 启动 / 重置
-       标题与提示都与读数区同宽、同中心，字号也相同（放大后的 titlePx）。
-       三行依次落在 0.07H / 0.29H / 0.46H，互不重叠。 */
+    /* 标题 / 提示 / 数字 / 启动 / 重置 标题与提示都与读数区同宽、同中心，字号也相同（放大后的 titlePx）。 三行依次落在 0.07H / 0.29H / 0.46H，互不重叠。 */
     tx = L + 0.405 * W; tw = 0.360 * W;
     b->title = (DBox){ tx, H * 0.07, tw, H * 0.19 };
     b->hint  = (DBox){ tx, H * 0.29, tw, H * 0.15 };
@@ -179,39 +141,28 @@ static void compute(App *a, double W, double H, Boxes *b)
                                   H * 0.46, gap, H * 0.36 };
     }
 
-    /* 模式 1：原计时器区换成上下两条滑块（音量 / 亮度），
-       位置与三块读数占的区域一致，不挤到 2x2 四格 */
+    /* 模式 1：原计时器区换成上下两条滑块（音量 / 亮度）， 位置与三块读数占的区域一致，不挤到 2x2 四格 */
     {
         double sy = H * 0.40, sh = H * 0.22;
         b->sVol = (DBox){ tx, sy,             tw, sh };
         b->sBri = (DBox){ tx, sy + H * 0.24,  tw, sh };
     }
 
-    /* 便签 / 剪贴板页标题条：与「倒计时」同字号、同全局字体、同一视觉层级。
-       内容区整体下移，终点不变（便签 0.94H、剪贴板 0.88H），
-       字号比例在 config.h 里同步补偿，保证正文一个像素都不缩。 */
-    /* 以下四个盒子 + 三个字号全部用 W0/H0：它们是文字排版基准。
-       绘制时仍会随主形状长大而整体平移/淡入，但内部不重排。
-       用户要求「剪贴板和便签要居中，相对于卡片居中」：三个盒子一律
-       以卡片水平中心对称摆放（x = L0 + (W0 - w)/2），标题绘制也正好
-       落在卡片正中。note.c / clip.c 里的文字行再按同一中心逐行居中。 */
+    
+    
     b->pageTitle = (DBox){ L0 + 0.075 * W0, H0 * 0.02, 0.850 * W0, H0 * 0.15 };
 
-    /* 便签视图：第一页的 2x2 四按钮不出现，整块卡片（除最左滚轮竖条）
-       全是文本区。不画输入框边框、不画纸块，文字直接落在卡片本体上。 */
+    /* 便签视图：第一页的 2x2 四按钮不出现，整块卡片（除最左滚轮竖条） 全是文本区。 不画输入框边框、不画纸块，文字直接落在卡片本体上。 */
     b->note = (DBox){ L0 + 0.075 * W0, H0 * 0.19, 0.850 * W0, H0 * 0.75 };
 
-    /* 剪贴板历史：内容区避开右侧清空图标与底部横排圆点（HDOTS_Y≈0.93H）。
-       条目文字直接落在卡片本体上。 */
+    /* 剪贴板历史：内容区避开右侧清空图标与底部横排圆点（HDOTS_Y≈0.93H）。 条目文字直接落在卡片本体上。 */
     b->clip      = (DBox){ L0 + 0.105 * W0, H0 * 0.19, 0.790 * W0, H0 * 0.69 };
     b->clipClear = (DBox){ L0 + 0.905 * W0, H0 * 0.19, 0.055 * W0, H0 * 0.10 };
 
     b->play  = (DBox){ L + 0.865 * W, H * 0.46, 0.052 * W, H * 0.36 };
     b->reset = (DBox){ L + 0.925 * W, H * 0.46, 0.052 * W, H * 0.36 };
 
-    /* 底部横向圆点命中区：以卡片水平中心为对称中心、按竖点间距铺开，
-       左右各扩一点便于点/滚。圆点本身在 draw_hdots() 里按同一个
-       ui_hdots_center() 逐个画，不画任何轨道。 */
+    /* 底部横向圆点命中区：以卡片水平中心为对称中心、按竖点间距铺开， 左右各扩一点便于点/滚。 圆点本身在 draw_hdots() 里按同一个 ui_hdots_center() 逐个画，不画任何轨道。 */
     {
         int n = 0;
         double span, half;
@@ -226,10 +177,8 @@ static void compute(App *a, double W, double H, Boxes *b)
                            span + 2.0 * half, HDOTS_HIT_PAD * 2.0 };
     }
 
-    /* 即时通知：与中卡片同尺寸；左侧图标 + 右侧程序名/详细信息。
-       整卡可点关闭，右上角 xmark 单独命中（先注册，优先命中）。 */
-    /* 通知卡片同样用稳定尺寸：绘制(notify_draw)与命中区必须同源，
-       否则展开过冲期间关闭热区会和图标错位。 */
+    /* 即时通知：与中卡片同尺寸； 左侧图标 + 右侧程序名/详细信息。 */
+    /* 通知卡片同样用稳定尺寸：绘制(notify_draw)与命中区必须同源， 否则展开过冲期间关闭热区会和图标错位。 */
     b->notify      = (DBox){ L0 + 0.01 * W0, H0 * 0.06, 0.98 * W0, H0 * 0.88 };
     b->notifyClose = (DBox){ L0 + 0.905 * W0, H0 * 0.08, 0.080 * W0, H0 * 0.28 };
 
@@ -241,17 +190,6 @@ static void compute(App *a, double W, double H, Boxes *b)
     b->titlePx = qs_iclamp((int)(H0 * TITLE_PX_RATIO), TITLE_PX_MIN, TITLE_PX_MAX);
 }
 
-/* ---- 底部横向指示圆点 ----
-   进入第 4 个竖点后，竖列圆点整列消失，改在底部画一排圆点。
-   和竖着的那列完全同款：同样的 canvas_disc、同样的半径
-   (HDOTS_R_ON / HDOTS_R_OFF)、同样的 ACCENT/DIM 配色；
-   间距直接取竖点的 pitch，但**以卡片水平中心对称、密集排开**
-   （不再按 0.30W..0.85W 铺满整张卡）。
-   只有一个横向组，点数 = cards_group_count() = 3：
-   横1 性能 / 横2 大卡片 / 横3 超大卡片（最后一点）。
-   停在大卡片时第 2 点亮 =「竖向第四个 = 横向第二个」；
-   停在超大卡片时第 3 点亮 = 横向最后一点。
-   没有轨道、没有长条、没有文字、没有箭头，边缘连续灰阶无锯齿。 */
 static void draw_hdots(App *a, const Boxes *b, double k)
 {
     Canvas *c = &a->canvas;
@@ -273,7 +211,7 @@ static void draw_hdots(App *a, const Boxes *b, double k)
     }
 }
 
-/* ---- 图标：FA 字形，缺失时降级为几何形状（同样用 SDF，无锯齿） ---- */
+/* 图标：FA 字形，缺失时降级为几何形状（同样用 SDF，无锯齿） */
 static void icon(App *a, unsigned cp, int px, DBox box,
                  int cr, int cg, int cb, double k)
 {
@@ -307,7 +245,6 @@ static void icon(App *a, unsigned cp, int px, DBox box,
     }
 }
 
-/* 滑块轨道几何：绘制与命中判定共用同一套公式，避免「看着在 30% 实际是 45%」 */
 static void slider_geom(DBox b, double *iconW, double *x0, double *w)
 {
     double iw = b.h * 0.85;
@@ -321,8 +258,7 @@ static void slider_geom(DBox b, double *iconW, double *x0, double *w)
     *w = ww;
 }
 
-/* 计时器区的大滑块：左侧图标 + 圆角槽 + 填充 + 圆形把手。
-   只在计时器区域出现，与「按钮下方细滑轨」不是一回事（后者已删除）。 */
+/* 计时器区的大滑块：左侧图标 + 圆角槽 + 填充 + 圆形把手。 只在计时器区域出现，与「按钮下方细滑轨」不是一回事（后者已删除）。 */
 static void slider(App *a, DBox b, unsigned cp, double val,
                    int cr, int cg, int cb, double k)
 {
@@ -372,9 +308,7 @@ void ui_set_view(App *a, int v)
         if (a->note.editing) input_end(a);   /* 切档前先保存便签 */
         tooltip_hide(a);                     /* 气泡别指着上一张卡的按钮 */
         a->ui.view = v; a->dirty = 1;
-        /* 「岛回到第一个卡片时收起」：切回 idx0 立刻回到胶囊态。
-           hover 保持 1（鼠标多半还在岛上），避免下一帧 over!=hover
-           又把刚收起的卡片展开；等真正移开再移入才会重新展开。 */
+        
         if (v == 0 && settings_collapse_on_first(&a->settings)) {
             a->anim.expanded = 0;
             a->hover = 1;
@@ -433,19 +367,14 @@ void ui_layout(App *a, double W, double H)
     SetRect(&u->wheelRect, 0, 0, 0, 0);
     SetRect(&u->hdotsRect, 0, 0, 0, 0);
 
-    /* 即时通知：不注册任何导航热区（竖条 / 横点 / 卡片控件全部不响应），
-       只有「点卡片关闭」与「右上角 xmark 关闭」。通知不占竖点/横点。 */
+    /* 即时通知：不注册任何导航热区（竖条 / 横点 / 卡片控件全部不响应）， 只有「点卡片关闭」与「右上角 xmark 关闭」。 通知不占竖点/横点。 */
     if (notify_active(&a->notify)) {
         add_hit(u, H_NOTIFY_CLOSE, b.notifyClose);   /* 先注册，优先命中 */
         add_hit(u, H_NOTIFY, b.notify);
         return;
     }
 
-    /* 导航热区与指示器严格互斥（本轮用户要求）：
-       显示横排圆点 = 已进入横向组 → **左侧竖条热区整个不注册**，
-       wheelRect 保持 (0,0,0,0)，滚轮、点击、悬停提示都不在那儿响应；
-       竖向阶段反过来，只注册竖条、不注册横点。
-       以前这里「竖条不画点但仍接受滚轮」是为了连滚不断点，现已取消。 */
+    
     if (hdots_on(a->ui.view)) {
         /* 横向组：底部一排圆点的命中区（滚轮 / 点击） */
         add_hit(u, H_HDOTS, b.hdots);
@@ -459,15 +388,11 @@ void ui_layout(App *a, double W, double H)
         /* 便签页只有文本区：第一页的 2x2 四按钮既看不见也不响应点击 */
         add_hit(u, H_NOTE, b.note);
     } else if (clip_view(a->ui.view)) {
-        /* 剪贴板历史：列表 + 右上角清空图标，其余控件一个都不注册。
-           空态连清空图标也不画/不响应，避免两个图标一起出现显得突兀。 */
+        
         add_hit(u, H_CLIP, b.clip);
         if (clip_count(&a->clip) > 0) add_hit(u, H_CLIP_CLEAR, b.clipClear);
     } else if (settings_view(a->ui.view)) {
-        /* 设置页：左栏三个页签「通用 / 更新 / 关于」；「通用」右栏四个单选
-           收起模式 + 自启动；「更新」右栏注册检查更新按钮，结果区滚轮滚动由
-           wheel_core 用 b.set.updateBody 判定；「关于」右栏只注册仓库链接。
-           几何直接取 settings_boxes() 的数组，绘制与命中严格同源。 */
+        
         static const int setIds[SET_SW_N] = {
             H_SET_LEAVE, H_SET_OUTSIDE, H_SET_FIRST,
             H_SET_NEVER, H_SET_AUTOSTART
@@ -487,15 +412,13 @@ void ui_layout(App *a, double W, double H)
         }
     } else if (perf_view(a->ui.view) || empty_view(a->ui.view) ||
                date_view(a->ui.view)) {
-        /* 日期时钟页 / 性能监测页 / 留空卡都是只读展示：不注册任何可点控件，
-           只保留最左竖条的滚轮切档热区（上面已 add_hit）。 */
+        /* 日期时钟页 / 性能监测页 / 留空卡都是只读展示：不注册任何可点控件， 只保留最左竖条的滚轮切档热区（上面已 add_hit）。 */
     } else {
         add_hit(u, H_HIDE,    b.hide);
         add_hit(u, H_BRI,     b.bri);
         add_hit(u, H_VOL,     b.vol);
         add_hit(u, H_TASKMGR, b.task);
-        /* 启动 / 重置只属于倒计时读数：切到音量亮度双滑块后
-           既不画也不响应点击（2x2 四按钮与两条滑块保留）。 */
+        /* 启动 / 重置只属于倒计时读数：切到音量亮度双滑块后 既不画也不响应点击（2x2 四按钮与两条滑块保留）。 */
         if (u->mode == 0) {
             add_hit(u, H_PLAY,  b.play);
             add_hit(u, H_RESET, b.reset);
@@ -518,23 +441,19 @@ void ui_draw(App *a, double W, double H, double k)
     Ui *u = &a->ui;
     Sys *s = &a->sys;
     Countdown *cd = &a->cd;
-    /* 自绘整页的模块用稳定尺寸，避免其内部字号随动画 H 每帧重算。
-       通知态 overrideMid 会让 anim_view_size 直接返回中卡尺寸。 */
+    
     double tw0, th0, tr0, W0, H0;
     anim_view_size(&a->anim, a->ui.view, &tw0, &th0, &tr0);
     W0 = tw0 * a->u; H0 = th0 * a->u;
     compute(a, W, H, &b);
 
-    /* 即时通知：整张卡片换成通知内容，不画竖点/横点、不画任何导航指示。
-       文字政策：程序名 + 详细信息是通知内容本身，与性能页同属放开范围。 */
+    /* 即时通知：整张卡片换成通知内容，不画竖点/横点、不画任何导航指示。 文字政策：程序名 + 详细信息是通知内容本身，与性能页同属放开范围。 */
     if (notify_active(&a->notify)) {
         notify_draw(&a->notify, a, W0, H0, k);
         return;
     }
 
-    /* 竖列 4 个圆点：只在竖向阶段（vdot 0..2）显示。
-       一旦进入横向组，整列点不画 —— 改由底部横排圆点接管。
-       没有 grip 图标、没有连接线；半径 / 配色 / 分布与横排完全同款。 */
+    /* 竖列 4 个圆点：只在竖向阶段（vdot 0..2）显示。 一旦进入横向组，整列点不画 —— 改由底部横排圆点接管。 */
     if (!hdots_on(u->view)) {
         double cx = b.wheel.x + b.wheel.w * 0.5;
         int cur = cards_vdot(u->view);
@@ -550,16 +469,10 @@ void ui_draw(App *a, double W, double H, double k)
         }
     }
 
-    /* 底部横排圆点：放在所有 early return 之前，留空卡 / 超大卡也照样有。
-       与竖列互斥，任一时刻只会出现其中一种。 */
+    /* 底部横排圆点：放在所有 early return 之前，留空卡 / 超大卡也照样有。 与竖列互斥，任一时刻只会出现其中一种。 */
     if (hdots_on(a->ui.view)) draw_hdots(a, &b, k);
 
-    /* 用户逐字点名的两个页面标题，登记在 AGENTS.md 封闭清单第 6/7 条：
-       「便签」用于便签页，「剪贴板」用于剪贴板历史页。
-       0.2 轮用户更正用词：「剪切板」→「剪贴板」，全包统一，
-       之前混用的「粘贴板」也一并统一；这只是更正字符串，不是新增加字。
-       与「倒计时」同字号、同全局字体、同淡灰，落在内容区上方的空条里；
-       其余页面（计时器 / 性能 / 留空卡 / 通知）一个字都不加。 */
+    
     if (note_view(a->ui.view) || clip_view(a->ui.view)) {
         const WCHAR *t = note_view(a->ui.view) ? L"便签" : L"剪贴板";
         font_draw_label(&a->fonts, c, t, b.titlePx,
@@ -568,21 +481,19 @@ void ui_draw(App *a, double W, double H, double k)
                         DIM_R, DIM_G, DIM_B, k);
     }
 
-    /* 第二张中卡片：带秒时钟 + 农历 / 干支 / 节气 / 周数等日期信息。
-       W0/H0 是目标态标称尺寸，文字不随展开弹簧重排（AGENTS.md 第 4 节第 10 条）。 */
+    /* 第二张中卡片：带秒时钟 + 农历 / 干支 / 节气 / 周数等日期信息。 W0/H0 是目标态标称尺寸，文字不随展开弹簧重排（AGENTS.md 第 4 节第 10 条）。 */
     if (date_view(a->ui.view)) {
         date_draw(&a->fonts, c, W0, H0, k);
         return;
     }
 
-    /* 第四张中卡片：性能监测。圆环 + 数字 + 硬件信息。 */
+    /* 第四张中卡片：性能监测。 圆环 + 数字 + 硬件信息。 */
     if (perf_view(a->ui.view)) {
         perf_draw(&a->perf, a, W0, H0, k);
         return;
     }
 
-    /* 第一个大卡片：剪贴板历史。条目文字是数据本身，不是 UI 标签；
-       右上角只有一个 trash-can 图标用于清空，没有任何说明文字。 */
+    /* 第一个大卡片：剪贴板历史。 条目文字是数据本身，不是 UI 标签； */
     if (clip_view(a->ui.view)) {
         ClipBox cb;
         cb.x = b.clip.x; cb.y = b.clip.y;
@@ -594,20 +505,17 @@ void ui_draw(App *a, double W, double H, double k)
         return;
     }
 
-    /* 唯一的超大卡片 = 设置页：左右栏「通用 / 关于」。
-       横排圆点在上方已先画完，这里只画内容区并 return。 */
+    /* 唯一的超大卡片 = 设置页：左右栏「通用 / 关于」。 横排圆点在上方已先画完，这里只画内容区并 return。 */
     if (settings_view(a->ui.view)) {
         double L0 = ((double)a->canvas.W - W0) * 0.5;
         settings_draw(a, W0, H0, L0, &b.set, k);
         return;
     }
 
-    /* 留空卡：纯卡片形状 + 底部横排圆点，任何内容都不画。
-       横点在上方已先画完，这里 return 只裁掉内容区。 */
+    /* 留空卡：纯卡片形状 + 底部横排圆点，任何内容都不画。 横点在上方已先画完，这里 return 只裁掉内容区。 */
     if (empty_view(a->ui.view)) return;
 
-    /* 2x2 四个图标属于计时器页，便签页 / 性能页 / 留空卡一个都不画。
-       仅图标，无框、无文字、无下方滑动条。 */
+    /* 2x2 四个图标属于计时器页，便签页 / 性能页 / 留空卡一个都不画。 仅图标，无框、无文字、无下方滑动条。 */
     if (timer_view(a->ui.view)) {
         icon(a, FA_HIDE, b.iconPx, b.hide, INK_R, INK_G, INK_B, k);
         icon(a, s->bri < 25 ? FA_BRIGHTNESS_LOW : FA_BRIGHTNESS,
@@ -619,8 +527,7 @@ void ui_draw(App *a, double W, double H, double k)
     }
 
     if (note_view(a->ui.view)) {
-        /* 便签：整块只有文字（和极淡的空态图标 / 滚动指示），
-           没有读数、没有 play/reset、没有任何边框。 */
+        /* 便签：整块只有文字（和极淡的空态图标 / 滚动指示）， 没有读数、没有 play/reset、没有任何边框。 */
         NoteBox nb;
         nb.x = b.note.x; nb.y = b.note.y;
         nb.w = b.note.w; nb.h = b.note.h;
@@ -629,16 +536,13 @@ void ui_draw(App *a, double W, double H, double k)
     }
 
     if (u->mode == 0) {
-        /* 标题「倒计时」：字号放大。旧版「cd.ended → bell 图标 + 淡圆底 +
-           数字变色」的常驻结束提示已整体删除：归零只弹即时通知卡片，
-           通知关闭/过期后这里就是完全正常的计时器，不残留提示态。 */
+        
         font_draw_label(&a->fonts, c, L"倒计时", b.titlePx,
                         b.title.x + b.title.w * 0.5,
                         b.title.y + b.title.h * 0.5, 1,
                         DIM_R, DIM_G, DIM_B, k);
 
-        /* 用户本轮逐字点名的一行提示，与标题同字号、同全局字体、同一中心，
-           落在标题与读数之间的空行；比标题淡一档，不抢读数。 */
+        /* 用户本轮逐字点名的一行提示，与标题同字号、同全局字体、同一中心， 落在标题与读数之间的空行； 比标题淡一档，不抢读数。 */
         font_draw_label(&a->fonts, c, L"滚轮调整时间", b.titlePx,
                         b.hint.x + b.hint.w * 0.5,
                         b.hint.y + b.hint.h * 0.5, 1,
@@ -677,9 +581,7 @@ void ui_draw(App *a, double W, double H, double k)
             }
         }
     } else {
-        /* 用户逐字点名：把 sliders 设置图标换成文字「亮度、音量调节」。
-           登记在 AGENTS.md 封闭清单第 11 条（逐字点名，不是放开政策）。
-           字号按标题框宽自适应收一档，保证整串不越界、不压到两条滑块。 */
+        
         {
             const WCHAR *t = L"亮度、音量调节";
             int px = b.titlePx;
@@ -815,8 +717,7 @@ void ui_activate(App *a, int id, int x, int y)
         countdown_reset(&a->cd); a->dirty = 1;
         break;
     case H_VOL: case H_BRI:
-        /* 单击亮度或音量 → 计时器变双滑块（原先右下切换按钮的功能），
-           再点一次收回到计时器。 */
+        /* 单击亮度或音量 → 计时器变双滑块（原先右下切换按钮的功能）， 再点一次收回到计时器。 */
         a->ui.mode = a->ui.mode ? 0 : 1;
         {
             double w, h, r;
@@ -831,8 +732,7 @@ void ui_activate(App *a, int id, int x, int y)
         else sys_apply_brightness(&a->sys, 1, a->hwnd);
         break;
     case H_HDOTS: {
-        /* 点第几个圆点就跳到该组第几张卡。用 hdots_slot() 找最近的点，
-           与 draw_hdots() 用的是同一个 hdots_center()，不会错位。 */
+        /* 点第几个圆点就跳到该组第几张卡。 用 hdots_slot() 找最近的点， 与 draw_hdots() 用的是同一个 hdots_center()，不会错位。 */
         Boxes b;
         double w, h, r;
         CardGroup g = cards_group(a->ui.view);
@@ -886,7 +786,7 @@ static int in_rect(const RECT *r, POINT c)
            c.y >= r->top && c.y < r->bottom;
 }
 
-/* 光标落在 HH / MM / SS 哪一段；未展开或滑块模式下命中表里没有这些 id */
+/* 光标落在 HH / MM / SS 哪一段； 未展开或滑块模式下命中表里没有这些 id */
 static int num_segment(const App *a, int x, int y)
 {
     int i;
@@ -915,25 +815,17 @@ void ui_adjust(App *a, int seg, int step)
     if (countdown_adjust(&a->cd, seg, step)) a->dirty = 1;
 }
 
-/* 倒计时自然归零：自动显示 + 强制展开，并保持到用户交互。
-   只有图标，没有新增文字。 */
+/* 倒计时自然归零：自动显示 + 强制展开，并保持到用户交互。 只有图标，没有新增文字。 */
 void ui_countdown_ended(App *a)
 {
     if (a->endNotified) return;
     a->endNotified = 1;
 
-    /* 倒计时归零唯一的提醒形态：新版即时通知卡片。
-       旧版「强制切回计时器页 + 00:00:00 变灰 + bell 常驻提示」已删除；
-       通知自己负责显示/展开/强制可见，并在关闭或过期后还原到弹出前的
-       视图与模式 —— 不打断用户当时正在看的页面。 */
+    
     notify_show_fa(&a->notify, a, FA_BELL, L"Qisland",
                    L"倒计时已结束 · 00:00:00", NOTIFY_MS);
 }
 
-/* 唯一横向组的滚轮：组内优先（横1 性能 ↔ 横2 大卡片 ↔ 横3 超大卡片），
-   组内走到头再由 cards_next 推进；当前只有一组，到头就停住，不再跨到别的组。
-   pureGroup=1（Shift / 水平滚轮）只在组内横切，不跨组。
-   往下滚（delta<0）= 下一张，往上滚 = 上一张。 */
 static void hdots_wheel(App *a, int delta, int pureGroup)
 {
     int dir = delta < 0 ? 1 : -1;
@@ -943,10 +835,6 @@ static void hdots_wheel(App *a, int delta, int pureGroup)
     ui_set_view(a, j);
 }
 
-/* horiz=1 表示水平滚轮（或 Shift+竖向滚轮）：纯组内横向切换。
-   horiz=0 是主竖向滚轮：竖向阶段由左侧竖条沿整条序列走；横向阶段
-   **竖条热区已不注册**，只有底部横排圆点走 hdots_wheel。
-   只有一条横向组，进与退都是同一套。 */
 static void wheel_core(App *a, int delta, int horiz)
 {
     POINT p, c;
@@ -959,8 +847,7 @@ static void wheel_core(App *a, int delta, int horiz)
     c = p;
     ScreenToClient(a->hwnd, &c);
 
-    /* ① 卡片最左侧竖条：仅竖向阶段存在。横向组时 wheelRect 是 (0,0,0,0)，
-       这里必然不命中，左侧滚轮彻底不切卡片（内容页则继续滚自己的列表）。 */
+    /* ① 卡片最左侧竖条：仅竖向阶段存在。 横向组时 wheelRect 是 (0,0,0,0)， 这里必然不命中，左侧滚轮彻底不切卡片（内容页则继续滚自己的列表）。 */
     if (in_rect(&a->ui.wheelRect, c)) {
         n = qs_now();
         if (n - a->lastWheel < WHEEL_DEBOUNCE) return;
@@ -968,8 +855,7 @@ static void wheel_core(App *a, int delta, int horiz)
         if (horiz || (GetAsyncKeyState(VK_SHIFT) & 0x8000)) {
             ui_set_view(a, cards_hmove(a->ui.view, delta > 0 ? 1 : -1));
         } else {
-            /* 方向修正：往下滚（delta<0）= 下一个卡片。
-               0→1→2→3→4 全程线性邻接，能滚到性能页、大卡片与超大卡片。 */
+            /* 方向修正：往下滚（delta<0）= 下一个卡片。 0→1→2→3→4 全程线性邻接，能滚到性能页、大卡片与超大卡片。 */
             ui_set_view(a, cards_next(a->ui.view, delta < 0 ? 1 : -1));
         }
         return;
@@ -984,8 +870,7 @@ static void wheel_core(App *a, int delta, int horiz)
         return;
     }
 
-    /* ①b 便签视图：悬浮在文本区时滚轮滚内容（不是切视图），
-       同样累加到 WHEEL_DELTA 才走一行，且完全不拦截输入。 */
+    /* ①b 便签视图：悬浮在文本区时滚轮滚内容（不是切视图）， 同样累加到 WHEEL_DELTA 才走一行，且完全不拦截输入。 */
     if (note_view(a->ui.view)) {
         NoteBox nb;
         ui_note_box(a, &nb);
@@ -1005,8 +890,7 @@ static void wheel_core(App *a, int delta, int horiz)
         return;
     }
 
-    /* ①b2 剪贴板历史：悬浮在列表上时滚轮滚条目（不是切卡片），
-       同样累加到 WHEEL_DELTA 才走一行，且完全不拦截输入。 */
+    /* ①b2 剪贴板历史：悬浮在列表上时滚轮滚条目（不是切卡片）， 同样累加到 WHEEL_DELTA 才走一行，且完全不拦截输入。 */
     if (clip_view(a->ui.view)) {
         ClipBox cb;
         ui_clip_box(a, &cb);
@@ -1026,10 +910,7 @@ static void wheel_core(App *a, int delta, int horiz)
         return;
     }
 
-    /* ①b3 关于页 / 更新页：内容比可视区高，右栏内容框内滚轮滚文档
-       （不切卡片）。与绘制共用 settings_boxes() 的 aboutBody / updateBody，
-       裁剪范围、docH clamp、滚动条位置三者不会错位。
-       横向阶段底部横点热区已在 ①a 优先处理，滚到那里仍是切卡。 */
+    
     if (settings_view(a->ui.view) &&
         (settings_tab(&a->settings) == SET_TAB_ABOUT ||
          settings_tab(&a->settings) == SET_TAB_UPDATE)) {
@@ -1061,9 +942,7 @@ static void wheel_core(App *a, int delta, int horiz)
         return;
     }
 
-    /* ①c 日期时钟页 / 性能监测页 / 设置页 / 留空卡都是只读或点选界面：
-       竖向阶段只有最左竖条切档，横向阶段只有底部圆点切档；
-       其余位置的滚轮既不滚内容也不调时间，且不拦截输入。 */
+    /* ①c 日期时钟页 / 性能监测页 / 设置页 / 留空卡都是只读或点选界面： 竖向阶段只有最左竖条切档，横向阶段只有底部圆点切档； 其余位置的滚轮既不滚内容也不调时间，且不拦截输入。 */
     if (perf_view(a->ui.view) || empty_view(a->ui.view) ||
         date_view(a->ui.view) || settings_view(a->ui.view)) {
         a->wheelAccum = 0;
@@ -1075,8 +954,7 @@ static void wheel_core(App *a, int delta, int horiz)
     seg = num_segment(a, c.x, c.y);
     if (seg < 0) { a->wheelAccum = 0; return; }
 
-    /* RAWMOUSE.usButtonData 是带符号 short，高分辨率滚轮可能小于 120，
-       按官方建议累加到 WHEEL_DELTA 再走一步。 */
+    /* RAWMOUSE.usButtonData 是带符号 short，高分辨率滚轮可能小于 120， 按官方建议累加到 WHEEL_DELTA 再走一步。 */
     a->wheelAccum += delta;
     while (a->wheelAccum >= WHEEL_DELTA ||
            a->wheelAccum <= -WHEEL_DELTA) {
@@ -1110,17 +988,14 @@ void ui_poll(App *a)
     if (notify_active(&a->notify)) over = 1;        /* 通知强制展开到过期/点掉 */
     if (over != a->hover) {
         a->hover = over;
-        /* 进入总是展开；离开是否收起由设置决定。
-           关闭「鼠标离开岛收起」后，移开鼠标保持展开（其它两个条件
-           或「永不收起」由设置组合给出）。 */
+        /* 进入总是展开； 离开是否收起由设置决定。 */
         if (over) a->anim.expanded = 1;
         else if (settings_collapse_on_leave(&a->settings))
             a->anim.expanded = 0;
         a->dirty = 1;
     }
 
-    /* 悬停提示：只在「进入 / 退出 / 显示 / 消失」几帧置脏，
-       气泡显示期间不置脏，静止零重绘不变。 */
+    /* 悬停提示：只在「进入 / 退出 / 显示 / 消失」几帧置脏， 气泡显示期间不置脏，静止零重绘不变。 */
     {
         int hid = (over && a->anim.exp > 0.5) ? ui_hit(a, c.x, c.y) : H_NONE;
         RECT hr;
@@ -1166,8 +1041,7 @@ void ui_poll(App *a)
     if (down && !a->prevDown) {
         /* 点击卡片外：结束便签编辑并保存（不吞掉这次点击） */
         if (!over && a->note.editing) input_end(a);
-        /* 「鼠标点击岛外收起」：只有开启该条件才把展开状态收回胶囊态，
-           且 hover 与 over 保持一致，下一帧不会立刻重新展开。 */
+        /* 「鼠标点击岛外收起」：只有开启该条件才把展开状态收回胶囊态， 且 hover 与 over 保持一致，下一帧不会立刻重新展开。 */
         if (!over && settings_collapse_on_outside(&a->settings) &&
             a->anim.expanded) {
             a->anim.expanded = 0;
@@ -1181,9 +1055,7 @@ void ui_poll(App *a)
         a->pressMoved = 0;
         a->drag = 0;
         if (a->pressId == H_NOTE) {
-            /* 便签：按下即定位 anchor 并清旧选区，拖动时逐帧扩展选区。
-               这里不走「松开才 activate」的通用逻辑，否则一松手就把刚
-               框好的选区重新点没了。 */
+            /* 便签：按下即定位 anchor 并清旧选区，拖动时逐帧扩展选区。 这里不走「松开才 activate」的通用逻辑，否则一松手就把刚 框好的选区重新点没了。 */
             NoteBox nb;
             ui_note_box(a, &nb);
             note_click(&a->note, a, nb, c.x, c.y);
@@ -1239,8 +1111,7 @@ void ui_render(App *a)
 
     canvas_shape(&a->canvas, w, h, r);
 
-    /* 岛态：左侧时钟（数字，展开时淡出）；倒计时进行时右侧同时显示
-       剩余时间。两侧边距同为 CLOCK_PAD，左对齐 / 右对齐对称。 */
+    /* 岛态：左侧时钟（数字，展开时淡出）； 倒计时进行时右侧同时显示 剩余时间。 */
     if (a->anim.exp < 0.98) {
         double sx = ((double)a->canvas.W - ISLAND_W * a->u) * 0.5;
         ta = 1.0 - qs_clamp(a->anim.exp * 1.7, 0.0, 1.0);
@@ -1263,10 +1134,7 @@ void ui_render(App *a)
                            ISLAND_H * a->u * 0.5, 2,
                            ACCENT_R, ACCENT_G, ACCENT_B, ta);
         } else {
-            /* 没有倒计时时，胶囊右侧显示用户图标包里「中间白、边缘黑」
-               那张圆图标；右缘与上面剩余时间文字的右缘对齐。
-               素材离线编成 64x64 灰度+alpha 数组，不读外部文件、不依赖
-               WIC/GDI+；按 alpha 叠进 layered DIB，展开时随 ta 一起淡出。 */
+            
             double d = CAPSULE_ICON_RATIO * ISLAND_H * a->u;
             double right = sx + ISLAND_W * a->u - CLOCK_PAD * a->u;
             capsule_icon_draw(&a->canvas, right - d * 0.5,

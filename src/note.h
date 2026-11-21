@@ -1,16 +1,4 @@
-/* note.h — 第二个中卡片：便签
- *
- * 设计约束：
- *   · 不画输入框边框、不画白纸块、不写 placeholder 文字 —— 文字直接落在
- *     卡片本体上，所以「不太突兀」。空态只有一个极淡的 pencil 图标。
- *   · 不使用 EDIT / RichEdit 子窗口控件：UpdateLayeredWindow 的分层窗口上
- *     任何 WS_CHILD 子窗口都不会被合成到 alpha 位图，控件会整个不可见。
- *     文本编辑状态改由 stb_textedit.h（无窗口、无渲染的 public domain 库）
- *     维护，渲染仍走本项目的 canvas / font，圆角裁切与抗锯齿不变。
- *   · 滚动完全自绘，没有系统滚动条；内容溢出时才在右缘出现一条极淡的
- *     圆头指示条（美化版），不画箭头、不画滑轨方块。
- *   · 文本自绘走 font 模块的 4x4 面积覆盖率，中文用全局字体，无锯齿。
- */
+/* note.h — 第二个中卡片：便签 */
 #ifndef QISLAND_NOTE_H
 #define QISLAND_NOTE_H
 
@@ -24,8 +12,7 @@ typedef struct {
     WCHAR  text[NOTE_MAX + 1];
     int    len;
 
-    /* 编辑状态：光标、选区两端、撤销栈全部由 stb_textedit 维护。
-       select_start != select_end 即「有选中」，由 note_draw 画成淡高亮。 */
+    /* 编辑状态：光标、选区两端、撤销栈全部由 stb_textedit 维护。 select_start != select_end 即「有选中」，由 note_draw 画成淡高亮。 */
     STB_TexteditState stb;
 
     int    editing;
@@ -43,7 +30,7 @@ typedef struct {
     unsigned int sig;
 
     /* stb 的 LAYOUTROW / GETWIDTH 回调只能拿到 Note*，所以这里存宿主上下文 */
-    void   *fontPtr;          /* FontSet* */
+    void   *fontPtr;          /* FontSet */
     NoteBox box;              /* 最近一次布局的设备像素文本区 */
 } Note;
 
@@ -57,7 +44,7 @@ void note_insert(Note *n, const WCHAR *s, int count);
 void note_backspace(Note *n);
 void note_delete(Note *n);
 void note_newline(Note *n);
-void note_move(Note *n, int op);       /* 见 note.c 的 OP_* */
+void note_move(Note *n, int op);       /* 见 note.c 的 OP_ */
 void note_scroll(Note *n, int lines);
 
 /* 键盘：key 是 note.h 里定义的 NK_* 值（含 SHIFT 位） */
@@ -72,7 +59,7 @@ void note_key(Note *n, int key);
 void note_select_all(Note *n);
 int  note_has_selection(const Note *n);
 void note_selection_range(const Note *n, int *a, int *b);
-/* 复制/剪切选中段到剪贴板；返回复制的字符数 */
+/* 复制/剪切选中段到剪贴板； 返回复制的字符数 */
 int  note_copy_selection(Note *n, int cut);
 /* 粘贴：会替换当前选区 */
 void note_paste(Note *n, const WCHAR *s, int count);

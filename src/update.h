@@ -1,16 +1,10 @@
-/* update.h — 设置页「更新」：查询最新 Release，把结果交回主线程
- *
- * 网络 IO 全在工作线程，主线程只负责把结果放进右栏可滚动文本区，
- * 并用 Qisland 自己的即时通知报一条。任何失败都保留服务器返回的原始
- * 字节，完整副本另存到 %TEMP%\Qisland_update_error.txt。
- */
+/* update.h — 设置页「更新」：查询最新 Release，把结果交回主线程 */
 #ifndef QISLAND_UPDATE_H
 #define QISLAND_UPDATE_H
 
 #include "common.h"
 
-/* 工作线程 / 看门狗 → 主线程。wp=0 带 UpdMsg*，wp=1 带 UpdTimeoutMsg*。
-   占用 WM_APP+4（+1 单实例 / +2 气泡 / +3 托盘已用）。 */
+/* 工作线程 / 看门狗 → 主线程。 wp=0 带 UpdMsg*，wp=1 带 UpdTimeoutMsg*。 */
 #define WM_APP_UPDATE       (WM_APP + 4)
 
 #define UPD_BRIEF_CHARS     256     /* 通知正文上限，与 NOTIFY_DETAIL_MAX 对齐 */
@@ -49,8 +43,7 @@ void         update_result_set_doch(double h, double viewH);
 void         update_result_wheel(int dir, double viewH);
 void         update_result_reset_scroll(void);
 
-/* WinHTTP 兜底放在独立翻译单元：wininet.h 与 winhttp.h 的 typedef 冲突，
-   两边不能出现在同一个编译单元里。句柄槽统一用 PVOID / LONG 传递。 */
+/* WinHTTP 兜底放在独立翻译单元：wininet.h 与 winhttp.h 的 typedef 冲突， 两边不能出现在同一个编译单元里。 句柄槽统一用 PVOID / LONG 传递。 */
 int  qi_winhttp_get(const WCHAR *url, const WCHAR *headers,
                     char **out, int *plen, DWORD *status,
                     volatile LONG *abort, volatile PVOID *reqSlot,

@@ -1,22 +1,4 @@
-/* perf.c — 性能监测卡片：官方 API 采集 + 自绘圆环/数字/硬件信息
- *
- * 官方依据（Win7 SP1 全覆盖，全部 kernel32 / user32 / gdi32，无新依赖）：
- *   GetSystemTimes          FILETIME 累计 tick；kernel 含 idle，
- *                           total=kernel+user, busy=total-idle，
- *                           两次采样差分得 CPU 百分比。间隔须足够长。
- *   GlobalMemoryStatusEx    MEMORYSTATUSEX.dwMemoryLoad(0..100)、
- *                           ullTotalPhys / ullAvailPhys（字节，不可截 32 位）
- *   GetDiskFreeSpaceExW     lpTotalNumberOfBytes / lpTotalNumberOfFreeBytes
- *                           是 ULARGE_INTEGER，不能截 32 位
- *   GetSystemInfo           SYSTEM_INFO.dwNumberOfProcessors
- *   EnumDisplayDevicesW     lpDevice=NULL 时 DISPLAY_DEVICE.DeviceString 是适配器名
- *   GetVersionExW           OSVERSIONINFOEX：6.1=Windows 7 / Server 2008 R2
- *   RegQueryValueExW        HKLM\...\CentralProcessor\0\ProcessorNameString
- *
- * 为什么不用 PDH：PdhAddCounter 的计数器名随系统语言本地化（得用
- * PdhAddEnglishCounter），速率型计数器必须两次采样间隔 ≥1s，还要链 pdh.lib。
- * GetSystemTimes 是等价且更轻的官方路径，MSDN 论坛给的也是这个算法。
- */
+/* perf.c — 性能监测卡片：官方 API 采集 + 自绘圆环/数字/硬件信息 */
 #include "perf.h"
 #include "app.h"
 #include "config.h"
@@ -27,7 +9,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/* ---------------- 小工具 ---------------- */
+/* 小工具 */
 static ULONGLONG ft2u(const FILETIME *ft)
 {
     ULARGE_INTEGER u;
@@ -108,7 +90,7 @@ static void os_name(Perf *p)
     p->osName[PERF_STR - 1] = 0;
 }
 
-/* ---------------- 启动时一次性采集硬件 ---------------- */
+/* 启动时一次性采集硬件 */
 static void collect_hw(Perf *p)
 {
     HKEY hk = NULL;
@@ -167,7 +149,7 @@ static void collect_hw(Perf *p)
     os_name(p);
 }
 
-/* ---------------- 实时采样 ---------------- */
+/* 实时采样 */
 static void sample(Perf *p)
 {
     FILETIME fi, fk, fu;
@@ -224,9 +206,7 @@ static void sample(Perf *p)
 
     wcsncpy(p->hwLines[3], p->osName, PERF_STR - 1); p->hwLines[3][PERF_STR - 1] = 0;
 
-    /* 用户要求「性能监测不用写 C 盘大小和占用」：右侧硬件信息不再输出
-       系统盘容量 / 可用空间那一整行。磁盘占用率仍由第三个圆环显示
-       （那是用户最初点名的三环之一，不删）。采集照旧，只是不写出来。 */
+    /* 用户要求「性能监测不用写 C 盘大小和占用」：右侧硬件信息不再输出 系统盘容量 / 可用空间那一整行。 磁盘占用率仍由第三个圆环显示 （那是用户最初点名的三环之一，不删）。 */
 
     p->sampleCount++;
 }
@@ -266,10 +246,6 @@ void perf_hw_summary(const Perf *p, char *out, int cap)
     out[cap - 1] = 0;
 }
 
-/* ---------------- 环色：三色基底 + 高负载向暖橙平滑插值 ----------------
-   基色与警示色都是常量；超过 PERF_WARN_PCT 才用 smoothstep 插值，
-   所以 85% 以下三个环各自保持纯色、互不混淆，高负载则有连续的功能反馈。
-   数字与诊断共用这个函数，保证「看到的颜色」和「断言的颜色」是同一套。 */
 void perf_ring_rgb(int idx, double val, int *r, int *g, int *b)
 {
     static const int base[3][3] = {
@@ -280,15 +256,13 @@ void perf_ring_rgb(int idx, double val, int *r, int *g, int *b)
     double t, s;
     int i = qs_iclamp(idx, 0, 2);
     t = qs_clamp((val - PERF_WARN_PCT) / (100.0 - PERF_WARN_PCT), 0.0, 1.0);
-    s = t * t * (3.0 - 2.0 * t);          /* smoothstep，避免阈值处硬跳 */
+    s = t * t * (3.0 - 2.0 * t);          
     *r = (int)(base[i][0] + (PERF_WARN_R - base[i][0]) * s + 0.5);
     *g = (int)(base[i][1] + (PERF_WARN_G - base[i][1]) * s + 0.5);
     *b = (int)(base[i][2] + (PERF_WARN_B - base[i][2]) * s + 0.5);
 }
 
-/* ---------------- 圆环：2x2 子采样面积覆盖率，无锯齿 ----------------
-   颜色只作为 canvas_blend_px 的源色传入，覆盖率算法完全不动：
-   彩色不会带来任何锯齿，边缘仍是连续灰阶。 */
+/* 圆环：2x2 子采样面积覆盖率，无锯齿 颜色只作为 canvas_blend_px 的源色传入，覆盖率算法完全不动： 彩色不会带来任何锯齿，边缘仍是连续灰阶。 */
 static void draw_ring(Canvas *c, double cx, double cy, double rad, double th,
                       double val, double k, int idx)
 {
@@ -312,8 +286,7 @@ static void draw_ring(Canvas *c, double cx, double cy, double rad, double th,
             double covBg = 0.0, covFg = 0.0;
             double shade = 1.0;
             int sy, sx;
-            /* 沿弧明暗：顶部起点偏暗，顺时针渐亮到末端，给平面色一点体积感。
-               用输出像素中心的角度即可，不参与覆盖率计算。 */
+            /* 沿弧明暗：顶部起点偏暗，顺时针渐亮到末端，给平面色一点体积感。 用输出像素中心的角度即可，不参与覆盖率计算。 */
             {
                 double dx = (x + 0.5) - cx, dy = (y + 0.5) - cy;
                 double ang = atan2(dx, -dy);
@@ -359,7 +332,7 @@ static void draw_ring(Canvas *c, double cx, double cy, double rad, double th,
     }
 }
 
-/* ---------------- 整页绘制 ---------------- */
+/* 整页绘制 */
 void perf_draw(Perf *p, App *a, double W, double H, double k)
 {
     Canvas *c = &a->canvas;
@@ -372,8 +345,7 @@ void perf_draw(Perf *p, App *a, double W, double H, double k)
     double x0  = L + W * 0.112;
     double hx  = L + W * 0.615, hx1 = L + W * 0.972;
     double maxW = hx1 - hx;
-    /* 用户要求「font size 放大一点」：环心数字 / 环下标签 / 页标题 /
-       硬件信息四档一起抬一档，clamp 上限同步放宽。 */
+    /* 用户要求「font size 放大一点」：环心数字 / 环下标签 / 页标题 / 硬件信息四档一起抬一档，clamp 上限同步放宽。 */
     int ringPx = qs_iclamp((int)(rad * 0.70), 14, 32);
     int labelPx = qs_iclamp((int)(H * 0.108), 12, 21);
     int titlePx = qs_iclamp((int)(H * 0.128), 14, 26);
@@ -391,8 +363,7 @@ void perf_draw(Perf *p, App *a, double W, double H, double k)
         double ly = H * 0.825;
         int r, g, b, nr, ng, nb;
         perf_ring_rgb(i, vals[i], &r, &g, &b);
-        /* 环心数字跟随环色，再向白提亮一段保证黑底可读；
-           标签保持中性灰，避免整页过花。 */
+        
         nr = (int)(r + (255 - r) * PERF_NUM_MIX + 0.5);
         ng = (int)(g + (255 - g) * PERF_NUM_MIX + 0.5);
         nb = (int)(b + (255 - b) * PERF_NUM_MIX + 0.5);
@@ -403,8 +374,7 @@ void perf_draw(Perf *p, App *a, double W, double H, double k)
                         DIM_R, DIM_G, DIM_B, k * 0.92);
     }
 
-    /* 右侧：标题 + 4 行硬件信息（C 盘容量行已删）。本页放开文字政策。
-       少一行后把 4 行重新均布到 0.315H..0.825H，别挤在上半截。 */
+    /* 右侧：标题 + 4 行硬件信息（C 盘容量行已删）。 本页放开文字政策。 */
     font_draw_label(f, c, L"性能监测", titlePx, hx, H * 0.145, 0,
                     ACCENT_R, ACCENT_G, ACCENT_B, k);
     for (i = 0; i < PERF_HW_LINES; i++) {

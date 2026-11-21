@@ -1,18 +1,4 @@
-/* huangli_data.h — 每日宜忌通书数据表（vendored，MIT）
- *
- * 来源：6tail/lunar-javascript v1.7.7
- *   https://github.com/6tail/lunar-javascript
- *   Copyright (c) 2018 6tail, MIT License（全文见 vendor/LICENSE-MIT-lunar.txt）
- *
- * 抽取内容（数据表本身未改动）：
- *   · LunarUtil.YI_JI          → 141 个宜忌词条（用 zh-CN i18n 表还原中文）
- *   · LunarUtil.DAY_YI_JI      → 34,149 字符的编码通书表，按
- *                                「日干支 + 月干支」查当日宜/忌索引
- *   · LunarUtil.SHEN_SHA[0]    → 「无」（查不到条目时的占位）
- *
- * 查表规则（getDayYi / getDayJi）用纯 C 重写在 src/lunar.c，
- * 未引入 JS 运行时、未引入网络、未改动任何数据。
- */
+/* huangli_data.h — 每日宜忌通书数据表（vendored，MIT） */
 #ifndef QISLAND_HUANGLI_DATA_H
 #define QISLAND_HUANGLI_DATA_H
 

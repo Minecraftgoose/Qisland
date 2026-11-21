@@ -1,17 +1,4 @@
-/* settings.c — 设置页（唯一一张超大卡片）
- *
- * 左栏三个页签「通用」「更新」「关于」；右栏「通用」是**四选一必选**的收起
- * 条件 ＋「开机自启动」独立开关；「更新」右栏显示当前版本 + 检查更新按钮 +
- * 可滚轮滚动的结果区（出错时直接贴服务器返回的原始响应）；「关于」右栏是
- * 软件图标 + 名称 + 可点击的仓库链接 + 四个单列纵向胶囊板块（about.c）。
- *
- * 实现约束：
- *   · 所有控件自绘进 alpha 画布（layered window 不合成 WS_CHILD 子控件）；
- *   · 几何 / 字号只用目标态标称尺寸 W0/H0/L0，绘制与命中同源；
- *   · 不新增任何清单外文字；没有输入框、没有标题栏、没有系统滚动条；
- *   · 不建线程、不设定时器、不轮询；开关动画挂主循环现有帧驱动，
- *     点击时只改状态 + 置脏，之后由 settings_tick() 逐帧插值。
- */
+/* settings.c — 设置页（唯一一张超大卡片） */
 #include "settings.h"
 #include "app.h"
 #include "config.h"
@@ -23,9 +10,9 @@
 #include "update.h"
 #include "version.h"
 
-/* ---------------- 路径与持久化 ---------------- */
+/* 路径与持久化 */
 #define SET_MAGIC   0x51455354u   /* 'QSET' */
-#define SET_VERSION 2u            /* v2 = 单选 mode；v1 = 旧版位掩码，读时迁移 */
+#define SET_VERSION 2u            /* v2 = 单选 mode； v1 = 旧版位掩码，读时迁移 */
 
 static void settings_path(WCHAR *out, size_t cap)
 {
@@ -46,8 +33,7 @@ static void settings_path(WCHAR *out, size_t cap)
     out[cap - 1] = 0;
 }
 
-/* v1 的 mask 是「可并存开关」；升级成单选时按优先级取一个，
-   mask==0（旧版「永不收起」）映射到 SET_MODE_NEVER，行为不突变。 */
+/* v1 的 mask 是「可并存开关」； 升级成单选时按优先级取一个， mask==0（旧版「永不收起」）映射到 SET_MODE_NEVER，行为不突变。 */
 static int mask_to_mode(DWORD mask)
 {
     if (mask & 0x01u) return SET_MODE_LEAVE;
@@ -104,10 +90,6 @@ static void settings_save(const Settings *s)
     CloseHandle(h);
 }
 
-/* ---------------- 开机自启动：HKCU\...\Run ----------------
-   Win7 原生，不需要任务计划 / 不需要管理员权限。值存在即视为开启；
-   写入时把自身完整路径加引号（路径含空格时必需）。删除用 RegDeleteValueW，
-   值本来就不存在也算成功，避免开关与注册表两边不同步。 */
 static int autostart_read(void)
 {
     HKEY k;
@@ -147,10 +129,6 @@ static int autostart_write(int on)
     return (r == ERROR_SUCCESS) ? 1 : 0;
 }
 
-/* ---------------- 开关弹簧动画 ----------------
-   ω=√k≈16.1，ζ=damp/(2ω)≈0.81 → 圆点到位时有轻微回弹，
-   约 0.35~0.45s 收敛。收敛后 cur 精确等于 target、vel 归零，
-   settings_tick() 随即返回 0，主循环恢复静止零重绘。 */
 static void sw_target(const Settings *s, int idx, double *target)
 {
     if (idx == SET_SW_AUTO) *target = s->autostart ? 1.0 : 0.0;
@@ -202,12 +180,12 @@ double settings_sw_value(const Settings *s, int idx)
     return s->swCur[idx];
 }
 
-/* ---------------- 生命周期 ---------------- */
+/* 生命周期 */
 void settings_init(Settings *s)
 {
     ZeroMemory(s, sizeof(*s));
     s->tab = SET_TAB_GENERAL;
-    /* 默认沿用程序原有交互：鼠标离开即收起。单选必选，永远有一个 ON。 */
+    /* 默认沿用程序原有交互：鼠标离开即收起。 单选必选，永远有一个 ON。 */
     s->collapseMode = SET_MODE_LEAVE;
     settings_load(s);            /* 兼容 v1 位掩码文件，自动迁移成单选 */
     s->autostart = autostart_read();
@@ -215,7 +193,7 @@ void settings_init(Settings *s)
     sw_snap(s);                  /* 启动不播放动画，直接落在正确状态 */
 }
 
-/* ---------------- 几何（绘制 / 命中唯一来源） ---------------- */
+/* 几何（绘制 / 命中唯一来源） */
 static void row_boxes(double W, double H, double rx, double rw,
                       double y, double hh, SBox *row, SBox *sw)
 {
@@ -245,13 +223,11 @@ void settings_boxes(double W, double H, double L, SetBoxes *b)
 
     b->groupBox   = (SBox){ rx, H * SET_GROUP_Y, rw, H * SET_GROUP_H };
 
-    /* 关于页滚动内容框：右缘留一条窄缝放滚动条，底部避开 0.93H 横排圆点。
-       绘制（about.c）与滚轮判定（ui.c wheel_core）都用这一个盒子。 */
+    /* 关于页滚动内容框：右缘留一条窄缝放滚动条，底部避开 0.93H 横排圆点。 绘制（about.c）与滚轮判定（ui.c wheel_core）都用这一个盒子。 */
     b->aboutBody  = (SBox){ rx, H * ABOUT_BODY_Y,
                             rw - H * ABOUT_SCROLL_GAP, H * ABOUT_BODY_H };
 
-    /* 仓库链接：头部固定不滚，整行可点。命中框与 about.c 的文字绘制共用
-       b->aboutRepo / b->repoPx，字号按标称 H0 算，动画期间不重排。 */
+    /* 仓库链接：头部固定不滚，整行可点。 命中框与 about.c 的文字绘制共用 b->aboutRepo / b->repoPx，字号按标称 H0 算，动画期间不重排。 */
     {
         double icon = H * ABOUT_ICON_R;
         double iy   = H * ABOUT_ICON_Y;
@@ -291,9 +267,7 @@ void settings_boxes(double W, double H, double L, SetBoxes *b)
     b->updTextPx  = qs_iclamp((int)(H * UPD_TEXT_PX_RATIO),  UPD_TEXT_PX_MIN,  UPD_TEXT_PX_MAX);
 }
 
-/* ---------------- 绘制 ----------------
-   轨道颜色和圆点位置都由弹簧值 v 连续插值，不按整数状态硬跳；
-   v 允许轻微过冲（0<v<1 之外一点点），显示时夹到 [0,1]。 */
+/* 绘制 轨道颜色和圆点位置都由弹簧值 v 连续插值，不按整数状态硬跳； v 允许轻微过冲（0<v<1 之外一点点），显示时夹到 [0,1]。 */
 static void draw_switch(Canvas *c, const SBox *sw, double v, double k)
 {
     double vv = qs_clamp(v, 0.0, 1.0);
@@ -344,9 +318,7 @@ static void draw_tab(App *a, const SetBoxes *b, const WCHAR *label,
                     on ? INK_B : DIM_B, k * (on ? 1.0 : 0.78));
 }
 
-/* ---------------- 更新页右栏：当前版本 + 按钮 + 可滚动结果 ----------------
-   结果区按 \n 与可用宽度软换行；两遍（先量高后绘制）同源，滚动条不会错位。
-   出错时这里就是服务器返回的原始字节，跟通知正文出自同一份文本。 */
+/* 更新页右栏：当前版本 + 按钮 + 可滚动结果 结果区按 \n 与可用宽度软换行； 两遍（先量高后绘制）同源，滚动条不会错位。 */
 static double update_doc(App *a, const WCHAR *txt, const SBox *body,
                          int px, double scroll, int draw, double k)
 {
@@ -436,7 +408,7 @@ void settings_draw(App *a, double W, double H, double L,
     Canvas *c = &a->canvas;
     const Settings *s = &a->settings;
 
-    /* 左右栏之间一条极淡竖线；不用框、不用纸块 */
+    /* 左右栏之间一条极淡竖线； 不用框、不用纸块 */
     canvas_round(c, b->dividerX, b->dividerY0, 1.0,
                  b->dividerY1 - b->dividerY0, 0.5,
                  DIM_R, DIM_G, DIM_B, k * 0.32);
@@ -475,7 +447,7 @@ void settings_draw(App *a, double W, double H, double L,
     draw_row(a, b, L"开机自启动", SET_SW_AUTO, k);
 }
 
-/* ---------------- 点击 ---------------- */
+/* 点击 */
 static void relayout(App *a)
 {
     double w, h, r;
@@ -495,7 +467,7 @@ void settings_click(App *a, int id, int x, int y)
         return;
     }
 
-    /* 切页签时两处滚动都回到顶部，避免切回来还停在半截 */
+    
     if (id == H_SET_TAB_GEN || id == H_SET_TAB_UPDATE || id == H_SET_TAB_ABOUT) {
         s->aboutScroll = 0.0;
         update_result_reset_scroll();
@@ -505,8 +477,7 @@ void settings_click(App *a, int id, int x, int y)
     case H_SET_TAB_GEN:    s->tab = SET_TAB_GENERAL; break;
     case H_SET_TAB_UPDATE: s->tab = SET_TAB_UPDATE;  break;
     case H_SET_TAB_ABOUT:  s->tab = SET_TAB_ABOUT;   break;
-    /* 单选必选：点任一项直接设为当前模式；再点已选中项也不清空，
-       所以四个里永远恰好一个 ON，不存在「全不选」。 */
+    /* 单选必选：点任一项直接设为当前模式； 再点已选中项也不清空， 所以四个里永远恰好一个 ON，不存在「全不选」。 */
     case H_SET_LEAVE:     s->collapseMode = SET_MODE_LEAVE;   break;
     case H_SET_OUTSIDE:   s->collapseMode = SET_MODE_OUTSIDE; break;
     case H_SET_FIRST:     s->collapseMode = SET_MODE_FIRST;   break;
@@ -520,10 +491,10 @@ void settings_click(App *a, int id, int x, int y)
     }
     settings_save(s);
     relayout(a);          /* 切页签后立刻刷新命中区，不留一帧空窗 */
-    a->dirty = 1;         /* 首帧；之后由 settings_tick() 驱动到收敛 */
+    a->dirty = 1;         /* 首帧； 之后由 settings_tick() 驱动到收敛 */
 }
 
-/* ---------------- 纯查询 ---------------- */
+/* 纯查询 */
 int settings_tab(const Settings *s) { return s->tab; }
 int settings_collapse_on_leave(const Settings *s)
 { return s->collapseMode == SET_MODE_LEAVE; }

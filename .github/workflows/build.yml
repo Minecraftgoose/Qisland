@@ -1,25 +1,4 @@
 # Qisland 发行流水线
-# 放置位置：.github/workflows/build.yml
-#
-# 仓库是扁平结构（本文件所在仓库）：
-#   Qisland/
-#   ├─ .gitignore  AGENTS.md  README.md  LICENSE（项目自身 Apache-2.0）
-#   ├─ LICENSES/（全部第三方许可全文，CI 复制到安装包 LICENSES/）
-#   ├─ src/  nsis/Qisland.nsi  assets/（仓库素材，安装包只挑运行必需的 3 个）
-#   └─ .github/workflows/build.yml
-#
-# CI 只做一件事：编译出 Qisland.exe，用 NSIS 打成安装包，发布到 Release。
-# Release 里只挂一份资产：Qisland-<版本>-Setup.exe。
-# 不产出 dist.zip 整包、不改仓库结构、不回写任何文件。
-#
-# 工具一律走官方源：
-#   · msys2/setup-msys2@v2 —— MSYS2 官方 action，从 repo.msys2.org 官方仓库装
-#       mingw-w64-x86_64-gcc    → gcc / windres（MINGW64）
-#       mingw-w64-x86_64-nsis   → makensis（含 Include/、Contrib/）
-#   · actions/checkout、actions/setup-python、actions/upload-artifact（GitHub 官方）
-#   · gh CLI（GitHub 托管 runner 预装，官方）
-#
-# 触发：push tag（v* 或数字开头），或 Actions 页手动 Run workflow。
 
 name: Qisland 安装包
 
@@ -31,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号，如 0.3.2；留空则用 tag，再退回 src/version.h'
+        description: '版本号，如 0.3.3；留空则用 tag，再退回 src/version.h'
         required: false
         default: ''
       tag:
@@ -66,25 +45,18 @@ jobs:
         with:
           python-version: '3.12'
 
-      # ---- 官方源安装编译 / 打包工具链 ----
+      # 官方源安装编译 / 打包工具链
       - name: 安装 MinGW-w64 GCC 与 NSIS（MSYS2 官方仓库）
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
-          # MINGW64 已被 MSYS2 标记弃用；本项目要兼容 Win7（msvcrt），暂不迁 UCRT64。
-          # 这是 setup-msys2 官方提供的「已知悉并抑制警告」输入（v2.33.0+）。
+          # MINGW64 已被 MSYS2 标记弃用； 本项目要兼容 Win7（msvcrt），暂不迁 UCRT64。
           suppress-deprecation-warnings: msystem-mingw64
           update: true
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-nsis
 
-      # ---- 组装 NSIS 期望的临时布局 ----
-      # Qisland.nsi 里 !define SRCDIR "..\..\软件\Qisland"、
-      # OutFile "..\..\软件\Qisland-${APPVERSION}-Setup.exe"，
-      # 且 makensis 默认把工作目录切到 .nsi 所在目录。所以脚本必须放在
-      # _release/Qisland/源码/nsis/ 下，运行时文件放在同级 ..\..\软件\Qisland\。
-      # 这一步只在 runner 的工作副本里做，仓库本身保持扁平。
       - name: 组装打包目录
         shell: bash
         run: |
@@ -95,16 +67,11 @@ jobs:
           cp -a src/. "$S/源码/src/"              # 含 qisland.manifest，windres 要读
           cp -a nsis/. "$S/源码/nsis/"
 
-          # 安装包里的 assets\ 只放程序真正会读的三个文件：
-          #   font.c 私有加载两个 TTF，notify.c 播 notice.wav。
-          # 图标 png/ico 全部编在 exe 资源里或自绘，不随包分发；
-          # preview.png / README.md 也不再进安装包。
           cp "assets/fa-solid-900.ttf"      "$S/软件/Qisland/assets/"
           cp "assets/OPPO Sans 4.0.ttf"     "$S/软件/Qisland/assets/"
           cp "assets/notice.wav"            "$S/软件/Qisland/assets/"
 
-          # 第三方许可全文按分发合规要求随包保留，但单独放 LICENSES\，
-          # 不混进 assets\（OPPO Sans 要求任何副本保留协议全文）。
+          # 第三方许可全文按分发合规要求随包保留，但单独放 LICENSES\， 不混进 assets\（OPPO Sans 要求任何副本保留协议全文）。
           cp -r LICENSES/. "$S/软件/Qisland/LICENSES/"
           cp LICENSE "$S/软件/Qisland/LICENSE"   # 项目自身 Apache-2.0
 
@@ -121,11 +88,10 @@ jobs:
             test -f "$S/软件/Qisland/LICENSES/$f"
           done
           test -f "$S/软件/Qisland/LICENSE"
-          # 组装目录里必须没有这两个文件，防止 NSIS 或旧脚本把它们带进包
           test ! -e "$S/软件/Qisland/preview.png"
           test ! -e "$S/软件/Qisland/README.md"
 
-      # ---- 版本：只改 runner 上的工作副本，不回写仓库 ----
+      # 版本：只改 runner 上的工作副本，不回写仓库
       - name: 解析版本并同步两处字面量
         shell: bash
         run: |
@@ -146,7 +112,7 @@ jobs:
               return ver, f"{a}.{b}.{c}.0", f"{a},{b},{c},0", bool(re.search(r"[-+]", m.group(4)))
 
           cur = re.search(r'QI_VERSION_STR\s+"([^"]+)"', open(vh, encoding="utf-8").read())
-          current = cur.group(1) if cur else "0.3.2"
+          current = cur.group(1) if cur else "0.3.3"
           ref = os.environ.get("GITHUB_REF", "")
           tag = os.environ.get("INPUT_TAG", "").strip() or (
               ref[len("refs/tags/"):] if ref.startswith("refs/tags/") else "")
@@ -154,9 +120,6 @@ jobs:
           ver, ver4, num4, pre = info
           release_tag = os.environ.get("INPUT_TAG", "").strip() or tag or ("v" + ver)
 
-          # Qisland.nsi 原本就是 UTF-8 with BOM（UTF8SIG）。NSIS 3.x 见到 BOM 会
-          # 自动按 UTF-8 解析，脚本里「软件」「源码」等中文路径与界面文字才不会乱码。
-          # 因此 makensis 不需要任何 /INPUTCHARSET 选项；但改版本时不能把 BOM 弄丢。
           nsi_s = open(nsi, encoding="utf-8-sig").read()
           if ver != current:
               s = open(vh, encoding="utf-8").read()
@@ -181,8 +144,7 @@ jobs:
           print(vals)
           PY
 
-      # ---- 编译：SRC / LIBS 仍以 build.bat 为唯一来源 ----
-      # 不直接跑 build.bat（末尾有 pause，且 cmd 不展开 *.c）。
+      # 编译：SRC / LIBS 仍以 build.bat 为唯一来源 不直接跑 build.bat（末尾有 pause，且 cmd 不展开 *.c）。
       - name: 编译 Qisland.exe
         shell: msys2 {0}
         run: |
@@ -201,12 +163,6 @@ jobs:
           cp Qisland.exe "../../软件/Qisland/Qisland.exe"
           ls -l "../../软件/Qisland/Qisland.exe"
 
-      # ---- 打安装包 ----
-      # 坑：MSYS2 会把以 / 开头的 argv 当 POSIX 绝对路径转成 Windows 路径，
-      # 上次 /INPUTCHARSET 被转成 D:/a/_temp/msys64/INPUTCHARSET，
-      # makensis 于是报 "Can't open script ..." 并退出 1。
-      # 脚本自带 UTF-8 BOM，makensis 会自动按 UTF-8 读，根本不需要 /INPUTCHARSET；
-      # 所以这里只传脚本名（相对路径，不会被转换），并显式关闭全部 argv 转换做防御。
       - name: 生成 NSIS 安装包
         shell: msys2 {0}
         run: |
@@ -231,7 +187,7 @@ jobs:
           path: Qisland-*-Setup.exe
           if-no-files-found: error
 
-      # ---- 发布：Release 里只挂安装包一份资产 ----
+      # 发布：Release 里只挂安装包一份资产
       - name: 发布 Release
         shell: bash
         env:

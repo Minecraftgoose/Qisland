@@ -1,17 +1,4 @@
-/* sys.c — 官方 API 落地
- *
- * 音量：IMMDeviceEnumerator::GetDefaultAudioEndpoint(eRender,eConsole)
- *       -> IMMDevice::Activate(IID_IAudioEndpointVolume)
- *       -> Get/SetMasterVolumeLevelScalar，归一化 0.0–1.0（endpointvolume.h，Vista+）
- * 亮度：WmiMonitorBrightnessMethods::WmiSetBrightness(uint32 Timeout 秒,
- *       uint8 Brightness 百分比)，命名空间 Root\wmi，返回 0 成功（Vista+）
- *       读初值 WQL 查 WmiMonitorBrightness.CurrentBrightness（uint8）
- *       调用链 CoInitializeEx -> CoCreateInstance(CLSID_WbemLocator)
- *       -> ConnectServer -> GetObject/GetMethod/SpawnInstance/Put -> ExecMethod
- * 兜底：dxva2.dll 动态加载 Get/SetMonitorBrightness；官方文档明确警告
- *       许多显示器未完整实现 VESA MCCS I2C，故只作 WMI 失败后第二路。
- * 进程：ShellExecuteW("open","taskmgr.exe")，成功返回 >32。
- */
+/* sys.c — 官方 API 落地 */
 #include "sys.h"
 #include "config.h"
 #include <physicalmonitorenumerationapi.h>   /* PHYSICAL_MONITOR */
@@ -234,7 +221,6 @@ void sys_open_taskmgr(void)
 }
 void sys_open_repo(void)
 {
-    /* URL 走 "open" 动词，由 shell 关联的默认浏览器打开；成功返回 >32。
-       地址取自 config.h 的 QISLAND_REPO_URL，与 about.c 显示的文字同源。 */
+    /* URL 走 "open" 动词，由 shell 关联的默认浏览器打开； 成功返回 >32。 */
     ShellExecuteW(NULL, L"open", QISLAND_REPO_URL, NULL, NULL, SW_SHOWNORMAL);
 }

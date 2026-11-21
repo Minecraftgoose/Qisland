@@ -1,15 +1,4 @@
-/* note.c — 便签：stb_textedit 编辑内核 + 自绘换行 / 选中高亮 / 持久化
- *
- * 为什么用库：
- *   UpdateLayeredWindow 的分层窗口把整块 alpha 位图交给系统合成，所有绘制
- *   都必须在内存 DC 完成；MSDN 与实测都确认「父窗口上的 WS_CHILD 子控件
- *   不会被合成，直接不可见」。所以 EDIT / RichEdit / Scintilla 这类真控件
- *   放上来就是一片空白，选区高亮更是无从谈起。
- *   改用 stb_textedit.h v1.16（public domain，无窗口、无渲染、不做分配）：
- *   它只管 cursor / select_start / select_end / undo，换行与字宽由本文件回调
- *   提供，选中矩形由 canvas 画进 alpha 画布 —— 既有库的标准选区交互，又保留
- *   圆角裁切、4x4 字形抗锯齿和「不突兀」的观感。
- */
+/* note.c — 便签：stb_textedit 编辑内核 + 自绘换行 / 选中高亮 / 持久化 */
 #include "note.h"
 #include "app.h"
 #include "canvas.h"
@@ -17,7 +6,7 @@
 #include "font.h"
 #include "icons.h"
 
-/* ---------------- stb_textedit 宿主适配（仅本编译单元） ---------------- */
+/* stb_textedit 宿主适配（仅本编译单元） */
 #define STB_TEXTEDIT_STRING               Note
 #define STB_TEXTEDIT_STRINGLEN(obj)       ((obj)->len)
 #define STB_TEXTEDIT_GETCHAR(obj, i)      ((obj)->text[i])
@@ -64,13 +53,12 @@ static void  note_sync_scroll(Note *n);
     note_stb_insert((Note *)(obj), (p), (const WCHAR *)(c), (n))
 #define STB_TEXTEDIT_DELETECHARS(obj, p, n)  note_stb_delete((Note *)(obj), (p), (n))
 
-/* v1.16 自身有两处「未使用」（find_charpos 的 z、未调用的 stb_textedit_char），
-   只在包含它这一小段屏蔽，项目自身代码仍保持 -Wall -Wextra 全开。 */
+/* v1.16 自身有两处「未使用」（find_charpos 的 z、未调用的 stb_textedit_char）， 只在包含它这一小段屏蔽，项目自身代码仍保持 -Wall -Wextra 全开。 */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #define STB_TEXTEDIT_IMPLEMENTATION
-#include "stb_textedit.h"       /* 生成 static 编辑函数；header 部分已被 guard 跳过 */
+#include "stb_textedit.h"       /* 生成 static 编辑函数； header 部分已被 guard 跳过 */
 #pragma GCC diagnostic pop
 
 enum { OP_LEFT = 1, OP_RIGHT, OP_UP, OP_DOWN, OP_HOME, OP_END,
@@ -84,7 +72,7 @@ static unsigned int text_sig(const Note *n)
     return h ^ (unsigned int)(n->len << 3);
 }
 
-/* ---------------- 持久化：%APPDATA%\Qisland\note.txt（UTF-8，无 BOM） ---------------- */
+/* 持久化：%APPDATA%\Qisland\note.txt（UTF-8，无 BOM） */
 static int note_path(WCHAR *out, size_t cap)
 {
     WCHAR app[MAX_PATH];
@@ -179,7 +167,7 @@ void note_clear(Note *n)
     n->dirty = 0;
 }
 
-/* ---------------- stb 回调 ---------------- */
+/* stb 回调 */
 static int note_stb_insert(Note *n, int pos, const WCHAR *s, int count)
 {
     int room;
@@ -214,7 +202,7 @@ static float note_stb_getwidth(Note *n, int rowStart, int i)
     int idx = rowStart + i;
     FontSet *fonts = (FontSet *)n->fontPtr;
     if (!fonts || idx < 0 || idx >= n->len) return 0.0f;
-    if (n->text[idx] == L'\n') return 0.0f;   /* == GETWIDTH_NEWLINE */
+    if (n->text[idx] == L'\n') return 0.0f;   /* GETWIDTH_NEWLINE */
     return (float)font_measure(fonts, n->text + idx, 1, n->px, 3);
 }
 
@@ -227,10 +215,6 @@ static int find_line(const Note *n, int idx)
     return n->lineCount - 1;
 }
 
-/* 关键：stb 从全文第 0 个字符开始遍历（i += r.num_chars）。
-   行末若有显式 '\n'，num_chars 必须把它算进去，否则下一行起点错位。
-   y 几何从 0 起、每行 baseline_y_delta = lineH，滚动由调用方把
-   topLine*lineH 加进鼠标 y 来对齐。 */
 static void note_stb_layoutrow(StbTexteditRow *r, Note *n, int start_i)
 {
     FontSet *fonts = (FontSet *)n->fontPtr;
@@ -248,7 +232,7 @@ static void note_stb_layoutrow(StbTexteditRow *r, Note *n, int start_i)
     r->baseline_y_delta = (float)n->lineH;
 }
 
-/* ---------------- 换行布局 ---------------- */
+/* 换行布局 */
 static int breakable_after(WCHAR ch)
 {
     return ch == L'，' || ch == L'。' || ch == L'、' || ch == L'；' ||
@@ -345,7 +329,7 @@ static void note_sync_scroll(Note *n)
     n->topLine = qs_iclamp(n->topLine, 0, maxTop);
 }
 
-/* ---------------- 对外编辑接口 ---------------- */
+/* 对外编辑接口 */
 static void note_ctx(Note *n, const App *a, NoteBox box)
 {
     n->fontPtr = (void *)&((App *)a)->fonts;
@@ -479,16 +463,11 @@ void note_set_editing(Note *n, int on)
     n->editing = on;
     if (!on) {
         note_save(n, 1);
-        /* 退出编辑时清掉选区，避免下次打开还留着一块高亮 */
+        
         n->stb.select_start = n->stb.select_end = n->stb.cursor;
     }
 }
 
-/* ---------------- 逐行居中 ----------------
-   用户要求「便签要居中，相对于卡片居中」。卡片永远水平居中画在 canvas 上，
-   所以 canvas.W/2 就是卡片中心。每行按自身宽度居中后的**左端 x**由这里给出：
-   绘制(align=1)、点击命中、光标、选区矩形全部调用它，保证严格同源，
-   不会出现「字看着在中间、点却落在别处」。 */
 static double note_line_x(const Note *n, const App *a, int L)
 {
     FontSet *fonts = (FontSet *)n->fontPtr;
@@ -503,7 +482,7 @@ static double note_line_x(const Note *n, const App *a, int L)
     return cx - (double)w * 0.5;
 }
 
-/* ---------------- 鼠标：点击定位 / 拖动框选 ---------------- */
+/* 鼠标：点击定位 / 拖动框选 */
 static void stb_coords(Note *n, const App *a, NoteBox box,
                        int x, int y, float *sx, float *sy)
 {
@@ -560,7 +539,7 @@ int note_line_count(const Note *n) { return n->lineCount; }
 int note_vis_lines(const Note *n)  { return n->visLines; }
 int note_overflow(const Note *n)   { return n->lineCount > n->visLines; }
 
-/* ---------------- 绘制 ---------------- */
+/* 绘制 */
 static void draw_selection(Note *n, App *a, double ty, double k)
 {
     Canvas *c = &a->canvas;
@@ -599,8 +578,7 @@ void note_draw(Note *n, App *a, NoteBox box, double k)
     note_ctx(n, a, box);
     ty = box.y + NOTE_PAD;
 
-    /* 文字逐行居中后可能比内容框左缘更靠左，裁切左界放宽到内缘，
-       右界不变；这样长行居中不会被切掉半个字。 */
+    /* 文字逐行居中后可能比内容框左缘更靠左，裁切左界放宽到内缘， 右界不变； 这样长行居中不会被切掉半个字。 */
     canvas_set_clip(c, (int)(box.x + 2.0), (int)ty,
                     (int)(box.x + box.w - NOTE_PAD),
                     (int)(box.y + box.h - NOTE_PAD));
@@ -616,7 +594,7 @@ void note_draw(Note *n, App *a, NoteBox box, double k)
             canvas_disc(c, icx, icy, 3.0, DIM_R, DIM_G, DIM_B, k * 0.42);
     }
 
-    /* 选中指示先画，文字覆盖其上；只在编辑态出现，不编辑时不留高亮 */
+    /* 选中指示先画，文字覆盖其上； 只在编辑态出现，不编辑时不留高亮 */
     if (n->editing) draw_selection(n, a, ty, k);
 
     end = n->topLine + n->visLines;

@@ -1,10 +1,4 @@
-/* countdown.c — 用墙钟推算剩余时间，不累加定时器误差
- * 官方 SetTimer 文档：lpTimerFunc=NULL 时系统投递 WM_TIMER，uElapse 下限 10ms。
- * 本程序用 200ms 定时器只负责触发重绘与归零判定。
- *
- * 滚轮调时（seg 0=时 / 1=分 / 2=秒）按段加固定秒数，保持 running 状态、
- * 重置本段起点，不引入定时器累计误差。
- */
+/* countdown.c — 用墙钟推算剩余时间，不累加定时器误差 */
 #include "countdown.h"
 #include "config.h"
 

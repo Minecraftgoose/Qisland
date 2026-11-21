@@ -20,7 +20,7 @@ void   anim_view_size(const Anim *a, int view,
 void   anim_tick(Anim *a, double dt, int view);
 int    anim_active(const Anim *a, int view);
 void   anim_geometry(const Anim *a, double *w, double *h, double *r);
-/* 目标态形状命中（收起用岛，展开用当前视图），不用动画中间态避免抖动 */
+
 int    anim_inside_target(const Anim *a, int view, double u,
                           int winW, double margin, int px, int py);
 

@@ -1,20 +1,4 @@
-/* main.c — Qisland 入口：装配各模块、消息循环、退出清理
- *
- * 模块分工：
- *   canvas  逐像素预乘 BGRA 画布 / SDF 光栅化
- *   font    私有 FA 字体加载 / 4x4 面积覆盖率字形渲染
- *   sys     Core Audio 音量 / WMI + DDC-CI 亮度 / 启动进程
- *   anim    视图尺寸 / 展开弹簧
- *   countdown 倒计时状态机
- *   date    日期时钟：带秒时钟 + 农历/干支/节气/周数，纯函数无状态
- *   lunar   本地农历库封装：vendored 纯 C 库，同步查询，无网络/无线程
- *   perf    性能监测：GetSystemTimes / GlobalMemoryStatusEx / 磁盘 + 圆环绘制
- *   clip    剪贴板历史：AddClipboardFormatListener / CF_UNICODETEXT / 自绘列表
- *   notify  即时通知：内存态覆盖视图、HICON/FA 图标、程序名+详细信息、无持久化
- *   balloon Win7 托盘气泡监听：SetWinEventHook(OUTOFCONTEXT) 旁观 + PostMessage 回主线程
- *   ui      仅图标布局 / 命中 / 交互 / 整帧渲染
- *   window  分层窗口 / Raw Input / 热键 / 菜单
- */
+/* main.c — Qisland 入口：装配各模块、消息循环、退出清理 */
 #include "app.h"
 #include "config.h"
 #include "window.h"
@@ -121,28 +105,21 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
             if (dt > 0.05) dt = 0.05;
             a->anim.lastTick = now;
             anim_tick(&a->anim, dt, a->ui.view);
-            /* 设置页开关弹簧：和展开弹簧共用同一帧驱动，不设新定时器、
-               不建线程；收敛后返回 0，静止零重绘不变。 */
+            /* 设置页开关弹簧：和展开弹簧共用同一帧驱动，不设新定时器、 不建线程； 收敛后返回 0，静止零重绘不变。 */
             swAnim = settings_tick(&a->settings, dt);
             ui_poll(a);
-            /* listener 不可用时按剪贴板序列号兜底；有 listener 时直接返回，
-               不置脏、不产生任何重绘 */
+            /* listener 不可用时按剪贴板序列号兜底； 有 listener 时直接返回， 不置脏、不产生任何重绘 */
             clip_poll(&a->clip, a);
             /* 通知只在 active 时检查过期，静止零开销、不置脏 */
             notify_tick(&a->notify, a, now);
 
-            /* 性能页展开时才采样；每秒一次，有新样本才置脏。
-               静止 / 收起 / 其他视图一律不采样，零重绘策略不变。 */
+            /* 性能页展开时才采样； 每秒一次，有新样本才置脏。 */
             if (a->visible && a->hover &&
                 cards_draw(a->ui.view) == DRAW_PERF &&
                 perf_tick(&a->perf, now))
                 a->dirty = 1;
 
-            /* 日期时钟页带秒：只有它展开且可见时才比较秒串，每秒置一次脏。
-               其它页面（含收起态）完全不进这段，静止零重绘策略不变。
-               用 cards_draw() 判定而非写死下标，以后插卡不用同步。
-               历法数据由 src/vendor/ 本地库同步提供，无请求、无缓存、
-               无 serial、无后台线程，不需要在这里做任何触发。 */
+            
             if (a->visible && a->anim.exp > 0.02 &&
                 !notify_active(&a->notify) &&
                 cards_draw(a->ui.view) == DRAW_DATE) {
@@ -157,7 +134,6 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
                     a->dirty = 1;
                 }
             }
-
 
             {
                 char c[16];

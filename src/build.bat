@@ -1,27 +1,8 @@
 @echo off
-rem Qisland build (MinGW-w64, pure C, no third-party runtime libs)
-rem Run this script from this src\ folder (it cd's here automatically).
-rem Output: Qisland.exe in this folder. Copy it next to the assets\ folder
-rem (the runtime folder that contains assets\) before running.
-rem Requires at runtime, in assets\ next to Qisland.exe:
-rem   fa-solid-900.ttf          (FA icons)
-rem   OPPO Sans 4.0.ttf         (global UI font, unmodified per its license)
-rem   notice.wav                (notification sound, PCM WAV / PlaySoundW; optional)
-rem Third-party license texts live in LICENSES/ at the repo root; CI copies
-rem them into assets\ before running makensis, so the installer carries them.
 setlocal
 cd /d "%~dp0"
 set CC=gcc
 set WINDRES=windres
-rem cmd.exe does NOT expand *.c, so list all 26 translation units explicitly
-rem (24 project + 2 vendored lunar library .c). Keep this list in sync.
-rem tests.c / tests.h were removed in 0.3: no test code ships in the product.
-rem settings.c uses the registry (HKCU Run) -> needs -ladvapi32.
-rem tray.c uses Shell_NotifyIconW -> shell32 already linked.
-rem notify.c uses PlaySoundW for assets\notice.wav -> needs -lwinmm.
-rem update.c uses WinINet / update_winhttp.c uses WinHTTP -> -lwininet -lwinhttp.
-rem Both are system DLLs, no third-party runtime library is bundled.
-rem CI reads SRC/LIBS from this file, so keep both lines as the single source.
 set SRC=main.c window.c canvas.c font.c sys.c anim.c countdown.c note.c perf.c date.c lunar.c clip.c notify.c balloon.c tooltip.c settings.c about.c capsuleicon.c tray.c cards.c input.c ui.c update.c update_winhttp.c vendor\lunar_date.c vendor\solar_term.c
 set LIBS=-luser32 -lgdi32 -lshell32 -lshlwapi -lole32 -loleaut32 -ladvapi32 -limm32 -lwinmm -lwininet -lwinhttp -lm
 rem 程序图标：「中间黑」那张 qisland.ico 由 qisland.rc 编成 COFF 资源对象。

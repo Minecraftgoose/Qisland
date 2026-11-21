@@ -1,15 +1,4 @@
-/* ui.h — 卡片布局、仅图标控件、命中判定、点击/拖动/滚轮
- *
- * 界面文字约定（封闭清单，见 AGENTS.md 第 4 节第 8 条）：计时器页
- * 「倒计时」+「滚轮调整时间」；便签页「便签」；剪贴板历史页「剪贴板」；
- * 性能页硬件信息；通知的程序名+详细信息；用户输入的便签/剪贴板数据。
- * HH:MM:SS 是读数，冒号是两个圆点（符号，不是文字）。按钮均为 FA 图标。
- * 滚轮热区固定在卡片最左侧竖条；悬浮在数字段上时滚轮改为调时间。
- *
- * 模式（由亮度/音量按钮触发，不再单独占一格）：
- *   mode 0 = 计时器（HH:MM:SS，悬浮滚轮可调）
- *   mode 1 = 计时器区变成音量 + 亮度双滑块
- */
+/* ui.h — 卡片布局、仅图标控件、命中判定、点击/拖动/滚轮 */
 #ifndef QISLAND_UI_H
 #define QISLAND_UI_H
 
@@ -55,7 +44,7 @@ typedef struct { double x, y, w, h; } DBoxNotify;
 typedef struct {
     int     view;
     int     mode;          /* 0 计时器 / 1 双滑块 */
-    int     hoverSeg;      /* -1 / 0=HH / 1=MM / 2=SS，仅用于视觉高亮 */
+    int     hoverSeg;      /* 1 / 0=HH / 1=MM / 2=SS，仅用于视觉高亮 */
     HitRect hits[16];
     int     hitN;
     RECT    wheelRect;
@@ -73,8 +62,7 @@ void  ui_note_box(const App *a, NoteBox *box);
 void  ui_clip_box(const App *a, ClipBox *box);
 void  ui_clip_clear_box(const App *a, ClipBox *box);
 void  ui_notify_boxes(const App *a, DBoxNotify *body, DBoxNotify *close);
-/* 横点几何：绘制 / 命中 / 诊断 / 测试共用同一套，避免两处算得不一样。
-   pitch = 竖点间距（带密集上限）；横点以卡片水平中心对称排列。 */
+
 double ui_dots_pitch(double cardH, double u);
 void   ui_hdots_center(double L, double W, double H, double pitch,
                        int n, int i, double *cx, double *cy);
@@ -86,7 +74,7 @@ void  ui_adjust(App *a, int seg, int step);
 void  ui_poll(App *a);
 void  ui_render(App *a);
 
-/* 倒计时自然归零：自动展开 + 强制显示；用户任何交互后解除 */
+/* 倒计时自然归零：自动展开 + 强制显示； 用户任何交互后解除 */
 void  ui_countdown_ended(App *a);
 void  ui_clear_end(App *a);
 

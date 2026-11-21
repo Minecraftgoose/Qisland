@@ -1,12 +1,4 @@
-/* font.c — 字形覆盖率渲染
- *
- * 关键点（也是「不要让我看见锯齿 fa」的解法）：
- *   GDI 在 32bpp DIB 上不保证写 alpha 通道，所以先把字形以黑底白字画进
- *   临时 DIB，只读回 RGB 灰度当覆盖率。再以 GLYPH_SS 倍字号渲染，
- *   对放大图做 SS x SS box-downsample，得到的是真实面积覆盖率而不是
- *   单像素灰度近似 —— 边缘连续多级灰阶，放大也不会出现台阶。
- *   覆盖率按 (码点/文本哈希, 字号) 缓存，动画帧里只做颜色合成，不重复光栅化。
- */
+/* font.c — 字形覆盖率渲染 */
 #include "font.h"
 #include "config.h"
 #include "icons.h"
@@ -144,10 +136,6 @@ static GlyphMask *rasterize(FontSet *f, const WCHAR *s, int len, int px,
     return m;
 }
 
-/* 自检：FA 字形是否真的被选中。
- * 用官方码点 f04b(play) 渲染，统计中心区域覆盖率：
- * fallback 字体在 PUA 上通常给空白或空心方框（中心几乎为空），
- * 而真实 play 是实心三角，中心有明显覆盖。 */
 static int probe_face(FontSet *f, const WCHAR *face)
 {
     WCHAR ch[2];
@@ -192,9 +180,6 @@ static int probe_face(FontSet *f, const WCHAR *face)
     return (lit > total / 40) && (center > lit / 8);
 }
 
-/* 探测指定家族是否真的能被 GDI 映射：CreateFontW 找不到时会静默换成
-   系统默认字体，GetTextFaceW 返回的实际名字就对不上，据此判定。
-   OPPO Sans 4.0 的 nameID=1/4 都是 'OPPO Sans 4.0'，直接比对即可。 */
 static int face_available(FontSet *f, const WCHAR *face)
 {
     HFONT hf, old;
@@ -222,13 +207,13 @@ int font_init(FontSet *f, double u)
     if (!make_dib(FONT_TMP_W, FONT_TMP_H, &f->tmpDC, &f->tmpBmp, &f->tmpBits))
         return 0;
 
-    /* 两个私有字体：FA 图标 + OPPO Sans 4.0 全局正文。都不装系统。 */
+    /* 两个私有字体：FA 图标 + OPPO Sans 4.0 全局正文。 都不装系统。 */
     build_asset_path(f->fontPath, MAX_PATH, FA_FONT_FILE);
     build_asset_path(f->oppoPath, MAX_PATH, OPPO_FONT_FILE);
     f->loaded     = AddFontResourceExW(f->fontPath, FR_PRIVATE, 0);
     f->oppoLoaded = AddFontResourceExW(f->oppoPath, FR_PRIVATE, 0);
 
-    /* ---- 全局字体：成功用 OPPO Sans，失败回退系统字体 ---- */
+    /* 全局字体：成功用 OPPO Sans，失败回退系统字体 */
     wcscpy(f->textFace, FONT_FACE_FALLBACK);
     wcscpy(f->cjkFace,  FONT_FACE_FALLBACK_CJK);
     if (f->oppoLoaded > 0 && face_available(f, OPPO_FACE)) {
@@ -243,7 +228,7 @@ int font_init(FontSet *f, double u)
     f->uiBig   = make_ui_font((int)(20 * u + 0.5), f->textFace);
     if (!f->uiClock || !f->uiSmall || !f->uiMid || !f->uiBig) return 0;
 
-    /* ---- FA 图标字体：与之前一致，两个候选家族依次试 ---- */
+    /* FA 图标字体：与之前一致，两个候选家族依次试 */
     wcscpy(f->face, FA_FACE_NAMEID1);
     if (f->loaded > 0) {
         for (int i = 0; i < 2; i++) {

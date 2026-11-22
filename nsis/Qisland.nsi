@@ -8,8 +8,8 @@
 !define MUI_UNICON  "..\src\qisland.ico"
 
 !define APPNAME      "Qisland"
-!define APPVERSION   "0.3.4"     ; 与 src/version.h 的 QI_VERSION_STR 一致
-!define APPVERSION4  "0.3.4.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
+!define APPVERSION   "0.3.5"     ; 与 src/version.h 的 QI_VERSION_STR 一致
+!define APPVERSION4  "0.3.5.0"   ; VS_FIXEDFILEINFO / VIProductVersion 要四段
 !define UNINSTKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Qisland"
 !define RUNKEY       "Software\Microsoft\Windows\CurrentVersion\Run"
 !define WNDCLASS     "QislandLayeredClass"

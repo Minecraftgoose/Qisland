@@ -5,12 +5,10 @@
 #include "icons.h"
 #include "notify.h"
 
-/* 系统提示图标资源 ID：Win32 标准数值。 不直接用 IDI_* 宏，因为它在部分 SDK 里被定义成 MAKEINTRESOURCE 指针，赋给 int 会产生类型歧义。 */
 #define BALLOON_IDI_INFORMATION 32516
 #define BALLOON_IDI_WARNING     32515
 #define BALLOON_IDI_ERROR       32513
 
-/* 回调需要的极少量全局：不指向 App，不跨线程传字符串 */
 static HWND  g_target;
 static DWORD g_trayPid;
 
@@ -25,7 +23,6 @@ static int is_balloon_class(const WCHAR *cls)
     return 0;
 }
 
-/* WinEvent 回调：只过滤，只 PostMessage */
 static void CALLBACK balloon_win_event(HWINEVENTHOOK hook, DWORD event,
                                        HWND hwnd, LONG idObject, LONG idChild,
                                        DWORD idEventThread, DWORD msEventTime)
@@ -40,21 +37,17 @@ static void CALLBACK balloon_win_event(HWINEVENTHOOK hook, DWORD event,
     if (idObject != OBJID_WINDOW || idChild != CHILDID_SELF) return;
     if (!GetClassNameW(hwnd, cls, 96) || !is_balloon_class(cls)) return;
 
-    /* TTS_BALLOON = 0x40（官方 Tooltip Styles，版本 5.80）：把普通 tooltip 排除掉，只认托盘气泡的卡通气球外观。 */
     style = (LONG)GetWindowLongPtrW(hwnd, GWL_STYLE);
     if (!(style & BALLOON_TTS_BALLOON)) return;
 
-    /* 气泡由 explorer 显示； 真机按 Shell_TrayWnd 的 pid 收窄，既降噪又防误报。 */
     if (g_trayPid) {
         GetWindowThreadProcessId(hwnd, &pid);
         if (pid != g_trayPid) return;
     }
 
-    /* 只送 HWND，文本由主线程自己读：绝不跨线程传指针或字符串 */
     PostMessageW(g_target, WM_APP_BALLOON_SIGNAL, (WPARAM)event, (LPARAM)hwnd);
 }
 
-/* 主线程：读气泡文本 */
 int balloon_read_text(HWND hwnd, WCHAR *out, int cap)
 {
     DWORD_PTR n = 0, got = 0;
@@ -81,7 +74,6 @@ int balloon_read_text(HWND hwnd, WCHAR *out, int cap)
             free(buf);
         }
     }
-    /* 路径 2：某些版本把 szInfoTitle 放在窗口文本里，GetWindowText 兜底 */
     if (!out[0] && GetWindowTextW(hwnd, out, cap) > 0) return 1;
     return out[0] ? 1 : 0;
 }
@@ -137,11 +129,9 @@ int balloon_read_title(HWND hwnd, WCHAR *out, int cap, UINT *iconOut)
             goto done;
         if (iconOut) *iconOut = back.uTitleBitmap;
 
-        /* 情形 A：控件把标题拷进我们给的缓冲 */
         ZeroMemory(buf, sizeof(buf));
         if (!ReadProcessMemory(hProc, remoteBuf, buf, sizeof(buf), &got))
             goto done;
-        /* 情形 B：控件把 pszTitle 改成它自己内部的指针 */
         if (!buf[0] && back.pszTitle && back.pszTitle != remoteBuf) {
             SIZE_T n = (SIZE_T)back.cch;
             if (n > BALLOON_TITLE_MAX) n = BALLOON_TITLE_MAX;
@@ -181,7 +171,6 @@ static HICON balloon_title_hicon(UINT icon)
     return LoadIconW(NULL, MAKEINTRESOURCEW(idi));
 }
 
-/* 主线程：信号 → 通知 */
 void balloon_on_signal(App *a, DWORD event, HWND hwnd)
 {
     Balloon *b = &a->balloon;
@@ -196,7 +185,6 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
     if (!b->enabled) return;
     b->events++;
 
-    /* 二次校验：WinEvent 是异步排队，等主线程处理时窗口可能已销毁或复用 */
     if (!hwnd || !IsWindow(hwnd)) return;
     if (!GetClassNameW(hwnd, cls, 96) || !is_balloon_class(cls)) return;
     b->classHits++;
@@ -210,7 +198,6 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
     }
     b->pidHits++;
 
-    /* 去抖：气球排队显示时 CREATE/SHOW 会连发，3 秒内同一来源只弹一次 */
     now = qs_now();
     if (b->lastAt && now - b->lastAt < BALLOON_COOLDOWN_MS) {
         b->suppressed++;
@@ -231,7 +218,6 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
     wcsncpy(b->lastText, text, BALLOON_TEXT_MAX);
     b->lastText[BALLOON_TEXT_MAX] = 0;
 
-    /* 标题 szInfoTitle：应用自己填的标题文本（如 "Greenshot"），不是系统 反查的 exe 名。 读得到就用它当程序名，读不到才退回「托盘消息」。 */
     title[0] = 0;
     if (balloon_read_title(hwnd, title, BALLOON_TITLE_MAX + 1, &titleIcon)) {
         b->titleHits++;
@@ -245,7 +231,6 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
         b->lastTitleIcon = 0;
     }
 
-    /* 详情 = 真实读到的 szInfo； 读不到就只给「有新消息」信号，不编造正文。 */
     {
         const WCHAR *app = title[0] ? title : BALLOON_APP_NAME;
         const WCHAR *detail = text[0] ? text : BALLOON_NO_TEXT;
@@ -260,7 +245,6 @@ void balloon_on_signal(App *a, DWORD event, HWND hwnd)
     b->hits++;
 }
 
-/* 生命周期 */
 void balloon_init(App *a)
 {
     Balloon *b = &a->balloon;
@@ -272,7 +256,6 @@ void balloon_init(App *a)
 
     g_target  = a->hwnd;
 
-    /* 官方允许按 idProcess 收窄：真机只收 explorer 的事件，开销极小。 */
     tray = FindWindowW(L"Shell_TrayWnd", NULL);
     if (tray) GetWindowThreadProcessId(tray, &b->trayPid);
     g_trayPid = b->trayPid;

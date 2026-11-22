@@ -1,4 +1,4 @@
-/* canvas.c — 画布实现 */
+/* canvas.c — 画布 */
 #include "canvas.h"
 #include "config.h"
 
@@ -172,7 +172,6 @@ void canvas_write_px(Canvas *c, int x, int y,
     da = (double)o[3] / 255.0;
     oa = a + da * (1.0 - a);
     src[0] = (double)cb; src[1] = (double)cg; src[2] = (double)cr;
-    /* outBits 是预乘 BGRA：目标保留 (1-a)，源按自身 alpha 预乘后叠加 */
     for (i = 0; i < 3; i++) {
         double v = (double)o[i] * (1.0 - a) + src[i] * a;
         o[i] = (unsigned char)qs_iclamp((int)(v + 0.5), 0, 255);

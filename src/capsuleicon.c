@@ -1,4 +1,4 @@
-/* capsuleicon.c — 胶囊态右侧的白色圆形图标（无倒计时时显示） */
+/* capsuleicon.c — 胶囊态右侧的白色圆形图标 */
 #include "capsuleicon.h"
 #include "canvas.h"
 
@@ -262,7 +262,6 @@ static const unsigned char ci_data[CI_N * CI_N * 2] = {
       0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 };
 
-/* 双线性取一个源样本（g 为灰度，a 为 alpha，均 0..255） */
 static void ci_sample(double u, double v, double *g, double *a)
 {
     double x = u * (double)CI_N - 0.5, y = v * (double)CI_N - 0.5;

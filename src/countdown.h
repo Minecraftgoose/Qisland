@@ -1,4 +1,4 @@
-/* countdown.h — 倒计时状态机（SetTimer/WM_TIMER 由 window 模块投递） */
+/* countdown.h — 倒计时状态机 */
 #ifndef QISLAND_COUNTDOWN_H
 #define QISLAND_COUNTDOWN_H
 
@@ -6,7 +6,7 @@
 
 typedef struct {
     int    running;
-    int    ended;        /* 自然归零，等待用户确认； 期间强制展开提示 */
+    int    ended;
     DWORD  start;        /* 本段计时开始时刻 */
     double base;         /* 本段起始秒数 */
     double remain;       /* 暂停时剩余秒数 */

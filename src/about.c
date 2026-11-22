@@ -1,11 +1,11 @@
-/* about.c — 设置页「关于」右栏 */
+/* about.c  */
 #include "about.h"
 #include "app.h"
 #include "config.h"
 #include "canvas.h"
 #include "font.h"
 
-/* 文案（逐字来自确认稿，封闭清单第 15 条） */
+/* 文案 */
 typedef struct { const WCHAR *head; const WCHAR *tail; } Chip;
 
 static const Chip kLibs[] = {
@@ -72,7 +72,6 @@ static void chip_draw(App *a, const Chip *ch, int px,
     double cy = y + h * 0.5;
     double tx;
 
-    /* 字号放大后个别长条目（如 Font Awesome 那行许可）可能比板块还宽。 逐 px 收缩到放得下为止； */
     chip_full(ch, buf, 192);
     tw = font_measure(&a->fonts, buf, (int)wcslen(buf), eff, 2);
     while (eff > 10 && tw + 2 * chip_pad_x(eff) > (int)w) {
@@ -82,7 +81,6 @@ static void chip_draw(App *a, const Chip *ch, int px,
     pad = chip_pad_x(eff);
     tx = x + pad;
 
-    /* 淡底 + 极淡描边，圆角 = 半高 → 胶囊 */
     canvas_round(c, x, y, w, h, h * 0.5,
                  255, 255, 255, k * ABOUT_CHIP_BG);
     canvas_frame(c, x, y, w, h, h * 0.5, 1.0,
@@ -125,17 +123,15 @@ static double block_run(App *a, int bi, double x, double y, double w,
 
     for (i = 0; i < kChipN[bi]; i++) {
         int cw = chip_w(&a->fonts, &kChips[bi][i], px);
-        if (cw > w) cw = (int)w;                  /* 保险：绝不越出板块宽 */
+        if (cw > w) cw = (int)w;
         if (draw)
             chip_draw(a, &kChips[bi][i], px, x, cy,
                       (double)cw, chipH, k);
         cy += chipH + gapY;
     }
-    /* 最后一行底部减板块起点 = 板块总高（含标题） */
     return (cy - gapY) - y;
 }
 
-/* 文档流：四个板块单列纵向依次排布 0.3 轮起不再「使用的库 / 架构」两列并排，全部用整行宽度依次向下。 内容高度远高于 aboutBody.h，滚轮一定滚得动。 */
 static double about_doc(App *a, const SBox *body, double H,
                         int px, int titlePx, int draw, double k)
 {
@@ -150,7 +146,7 @@ static double about_doc(App *a, const SBox *body, double H,
         y += h + gap;
         total += h + gap;
     }
-    return total - gap;    /* 末尾那段 gap 只是留白，不计进文档高 */
+    return total - gap;
 }
 
 static void draw_program_icon(App *a, double x, double y, double size, double k)
@@ -197,7 +193,6 @@ static void draw_program_icon(App *a, double x, double y, double size, double k)
             rr = qs_iclamp(r * 255 / mx, 0, 255);
             gg = qs_iclamp(g * 255 / mx, 0, 255);
             bb = qs_iclamp(b * 255 / mx, 0, 255);
-            /* 暗色图标：放大覆盖率、把色相压到冷灰白一档，形状才看得见 */
             cov = qs_clamp((double)mx / 255.0 * ABOUT_ICON_GAIN, 0.0, 1.0);
             rr = qs_iclamp((int)(rr * ABOUT_ICON_TINT_R), 0, 255);
             gg = qs_iclamp((int)(gg * ABOUT_ICON_TINT_G), 0, 255);
@@ -223,7 +218,7 @@ void about_draw(App *a, double W, double H, double L,
                             ABOUT_TITLE_PX_MIN, ABOUT_TITLE_PX_MAX);
     int namePx  = qs_iclamp((int)(H * ABOUT_NAME_PX),
                             ABOUT_NAME_PX_MIN, ABOUT_NAME_PX_MAX);
-    int repoPx  = b->repoPx;      /* 与 settings_boxes() 的命中框同源 */
+    int repoPx  = b->repoPx;
     double rx = L + SET_RIGHT_X * W;
     double rw = SET_RIGHT_W * W;
     double icon = H * ABOUT_ICON_R;
@@ -233,7 +228,6 @@ void about_draw(App *a, double W, double H, double L,
 
     (void)L;
 
-    /* 头部：固定不滚 */
     draw_program_icon(a, ix, iy, icon, k);
     font_draw_label(&a->fonts, c, L"Qisland", namePx,
                     tx, iy + icon * 0.36, 0,
@@ -260,7 +254,6 @@ void about_draw(App *a, double W, double H, double L,
     canvas_round(c, rx, H * ABOUT_HR_Y, rw, 1.0, 0.5,
                  DIM_R, DIM_G, DIM_B, k * 0.28);
 
-    /* 文档高度两遍同源：先量后画 */
     docH  = about_doc(a, body, H, px, titlePx, 0, k);
     viewH = body->h;
     a->settings.aboutDocH = docH;
@@ -274,7 +267,6 @@ void about_draw(App *a, double W, double H, double L,
     about_doc(a, body, H, px, titlePx, 1, k);
     canvas_reset_clip(c);
 
-    /* 右缘一条极淡圆条：仅内容超出时显示，不画轨道方块和箭头 */
     if (maxS > 0.5) {
         thumbH = qs_clamp(viewH * viewH / docH, 24.0, viewH);
         thumbY = body->y + (viewH - thumbH) *

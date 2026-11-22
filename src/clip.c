@@ -1,4 +1,4 @@
-/* clip.c — 剪贴板历史：监听、去重、写回、持久化、自绘列表 */
+/* clip.c — 剪贴板历史 */
 #include "clip.h"
 #include "app.h"
 #include "canvas.h"
@@ -18,10 +18,8 @@
 typedef BOOL (WINAPI *PFN_ADDLISTENER)(HWND);
 typedef BOOL (WINAPI *PFN_REMLISTENER)(HWND);
 
-/* 反注册必须传注册时的原 HWND； 窗口销毁后仍要能拿到它 */
 static HWND g_listenerHwnd = NULL;
 
-/* 路径与持久化 */
 static int clip_path(const Clip *c, WCHAR *out, size_t cap)
 {
     WCHAR app[MAX_PATH];
@@ -35,7 +33,7 @@ static int clip_path(const Clip *c, WCHAR *out, size_t cap)
         WCHAR dir[MAX_PATH];
         _snwprintf(dir, MAX_PATH, L"%s\\Qisland", app);
         dir[MAX_PATH - 1] = 0;
-        CreateDirectoryW(dir, NULL);   /* 已存在时返回 ERROR_ALREADY_EXISTS，忽略 */
+        CreateDirectoryW(dir, NULL);
     }
     _snwprintf(out, (int)cap, L"%s\\%s", app,
                (c && c->testFile) ? CLIP_TEST_FILE : CLIP_FILE);
@@ -101,7 +99,6 @@ done:
 
 void clip_reload(Clip *c)
 {
-    /* 只清「历史数据」，listener / 统计 / 测试标志全部保留 */
     ZeroMemory(c->items, sizeof(c->items));
     c->count = 0;
     c->top = 0;
@@ -150,12 +147,10 @@ void clip_shutdown(Clip *c, App *a)
         if (pRemove) pRemove(g_listenerHwnd);
     }
     c->detached = 1;
-    /* 只在确实有未保存改动时写盘，绝不把用户的真实历史覆盖成空 */
     if (c->dirty) clip_save(c, 1);
     if (c->u32) { FreeLibrary(c->u32); c->u32 = NULL; }
 }
 
-/* 读 / 写系统剪贴板 */
 int clip_read_text(HWND hwnd, WCHAR *out, int cap)
 {
     HANDLE h;
@@ -164,7 +159,6 @@ int clip_read_text(HWND hwnd, WCHAR *out, int cap)
     int maxc, n = 0, retry;
 
     if (!IsClipboardFormatAvailable(CF_UNICODETEXT)) return 0;
-    /* 剪贴板可能被别的进程短暂占用：重试几次，不长时间阻塞主线程 */
     for (retry = 0; retry < 5; retry++) {
         if (OpenClipboard(hwnd)) break;
         Sleep(10);
@@ -176,7 +170,6 @@ int clip_read_text(HWND hwnd, WCHAR *out, int cap)
         if (p) {
             bytes = GlobalSize(h);
             maxc = (int)(bytes / sizeof(WCHAR));
-            /* 官方示例做法：不假定有 null，按 GlobalSize 上限找终止符 */
             while (n < maxc && p[n] != 0) n++;
             if (n >= cap) n = cap - 1;
             if (n > 0) memcpy(out, p, (size_t)n * sizeof(WCHAR));
@@ -202,7 +195,7 @@ int clip_set_clipboard(Clip *c, App *a, const WCHAR *s, int len)
         Sleep(10);
     }
     if (retry < 5) {
-        EmptyClipboard();   /* owner 变成本窗口，供自触发判据使用 */
+        EmptyClipboard();
         h = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT,
                         (SIZE_T)(len + 1) * sizeof(WCHAR));
         if (h) {
@@ -212,9 +205,9 @@ int clip_set_clipboard(Clip *c, App *a, const WCHAR *s, int len)
                 p[len] = 0;
                 GlobalUnlock(h);
                 if (SetClipboardData(CF_UNICODETEXT, h) != NULL) {
-                    ok = 1;      /* 成功后内存归系统所有，不能 GlobalFree */
+                    ok = 1;
                 } else {
-                    GlobalFree(h);   /* 只有失败才自己释放 */
+                    GlobalFree(h); 
                 }
             } else GlobalFree(h);
         }
@@ -250,13 +243,11 @@ int clip_push_text(Clip *c, const WCHAR *s, int len)
     if (only_space(s, len)) return 0;
     c->captures++;
 
-    /* 完全相同的最新一条 → 只合并，不新增 */
     if (c->count > 0 && c->items[0].len == len &&
         memcmp(c->items[0].text, s, (size_t)len * sizeof(WCHAR)) == 0) {
         c->dupSkipped++;
         return 0;
     }
-    /* 旧条目被重新复制 → 提到顶部（不算新增，但列表确实变了） */
     for (i = 1; i < c->count; i++) {
         if (c->items[i].len == len &&
             memcmp(c->items[i].text, s, (size_t)len * sizeof(WCHAR)) == 0) {
@@ -271,7 +262,6 @@ int clip_push_text(Clip *c, const WCHAR *s, int len)
             return 1;
         }
     }
-    /* 新条目插到顶部，超出上限丢最旧的 */
     if (c->count < CLIP_MAX_ITEMS) c->count++;
     for (j = c->count - 1; j > 0; j--) c->items[j] = c->items[j - 1];
     c->items[0].len = len;
@@ -287,7 +277,6 @@ int clip_push_text(Clip *c, const WCHAR *s, int len)
 
 static void mark_dirty(App *a)
 {
-    /* 只在「展开且当前就是剪贴板页」时重绘； 后台捕获不触发任何帧， 静止零重绘策略不受影响。 */
     if (a->anim.exp > 0.02 && cards_draw(a->ui.view) == DRAW_CLIP)
         a->dirty = 1;
 }
@@ -299,10 +288,9 @@ void clip_on_update(Clip *c, App *a)
     int n;
 
     seq = GetClipboardSequenceNumber();
-    if (seq && seq == c->lastSeq) return;   /* 同一变化的重复投递 */
+    if (seq && seq == c->lastSeq) return;
     c->lastSeq = seq;
 
-    /* 三重自触发判据：owner 是本窗口 / 内容等于刚写回且时间窗内 */
     if (GetClipboardOwner() == a->hwnd) { c->selfSkipped++; return; }
     n = clip_read_text(a->hwnd, buf, CLIP_MAX_CHARS + 1);
     if (n <= 0) return;
@@ -381,7 +369,6 @@ static void clip_layout(Clip *c, App *a, ClipBox box)
     if (sig == c->sig) return;
     c->sig = sig;
 
-    /* 右侧留给极淡滚动指示与「已回填」的 check 图标 */
     maxW = (int)(c->areaW - CLIP_SCROLL_W - CLIP_CHECK_W);
     if (maxW < 40) maxW = 40;
     ellW = font_measure(f, L"\x2026", 1, c->px, 3);   /* … */
@@ -391,7 +378,6 @@ static void clip_layout(Clip *c, App *a, ClipBox box)
         int m = 0, w;
         const WCHAR *src = c->items[i].text;
         int len = c->items[i].len;
-        /* 换行 / 制表压成空格，历史原文仍完整保留，只是显示为一行 */
         for (j = 0; j < len && m < CLIP_MAX_CHARS; j++) {
             WCHAR ch = src[j];
             flat[m++] = (ch == L'\r' || ch == L'\n' || ch == L'\t') ? L' ' : ch;
@@ -404,7 +390,6 @@ static void clip_layout(Clip *c, App *a, ClipBox box)
             c->line[i][cp] = 0;
             c->lineLen[i] = cp;
         } else {
-            /* 二分找能放下的最大前缀，再补省略号（不要用系统 ellipsis， 它会在透明通道上出彩边； 这里就是普通文字） */
             int lo = 0, hi = m, best = 0, room = maxW - ellW;
             if (room < 0) room = 0;
             while (lo <= hi) {
@@ -470,7 +455,6 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
                     (int)(box.x + box.w - CLIP_PAD),
                     (int)(box.y + box.h - CLIP_PAD));
 
-    /* 空态：只有一个极淡的 clipboard 图标，没有任何提示文字 */
     if (c->count == 0) {
         double icx = centerX, icy = ty + c->lineH * 0.5;
         if (font_fa_ok(&a->fonts))
@@ -489,7 +473,6 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
         int lit = (idx == c->selected);
         int hov = (r == c->hoverRow);
         if (lit || hov) {
-            /* 淡圆底：选中比悬浮稍亮； 没有边框、没有分隔线 */
             canvas_round(cv, tx - 3.0, yy + 2.0,
                          c->areaW - CLIP_SCROLL_W + 6.0,
                          (double)c->lineH - 4.0, 5.0,
@@ -504,7 +487,6 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
                            lit ? ACCENT_B : INK_B,
                            k * (lit ? 1.0 : 0.92));
         if (lit && font_fa_ok(&a->fonts)) {
-            /* 右端静态 check：表示「这条已回填，可直接粘贴」， 不做淡出动画，静止零重绘策略不变 */
             font_draw_icon(&a->fonts, cv, FA_CHECK,
                            qs_iclamp((int)(c->px * 0.72), 12, 22),
                            box.x + box.w - CLIP_PAD - CLIP_CHECK_W * 0.5,
@@ -514,7 +496,6 @@ void clip_draw(Clip *c, App *a, ClipBox box, double k)
     }
     canvas_reset_clip(cv);
 
-    /* 美化滚动指示：没有系统滚动条，连轨道都不画，只有极淡圆头短滑块 */
     if (c->count <= c->visRows) return;
     trackX = box.x + box.w - CLIP_PAD - 2.0;
     trackY = ty + 2.0;

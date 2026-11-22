@@ -66,7 +66,7 @@ static GlyphMask *rasterize(FontSet *f, const WCHAR *s, int len, int px,
         m = &f->cache[i];
         if (m->key == key && m->px == px && m->kind == kind) return m;
     }
-    if (f->cacheN >= GLYPH_CACHE_MAX) {          /* 简单全清，够用 */
+    if (f->cacheN >= GLYPH_CACHE_MAX) {
         for (i = 0; i < f->cacheN; i++) free(f->cache[i].cov);
         f->cacheN = 0;
     }
@@ -203,17 +203,14 @@ int font_init(FontSet *f, double u)
     ZeroMemory(f, sizeof(*f));
     f->u = u;
 
-    /* DIB 要在任何探测之前建好：probe_face / face_available 都往它上面画 */
     if (!make_dib(FONT_TMP_W, FONT_TMP_H, &f->tmpDC, &f->tmpBmp, &f->tmpBits))
         return 0;
 
-    /* 两个私有字体：FA 图标 + OPPO Sans 4.0 全局正文。 都不装系统。 */
     build_asset_path(f->fontPath, MAX_PATH, FA_FONT_FILE);
     build_asset_path(f->oppoPath, MAX_PATH, OPPO_FONT_FILE);
     f->loaded     = AddFontResourceExW(f->fontPath, FR_PRIVATE, 0);
     f->oppoLoaded = AddFontResourceExW(f->oppoPath, FR_PRIVATE, 0);
 
-    /* 全局字体：成功用 OPPO Sans，失败回退系统字体 */
     wcscpy(f->textFace, FONT_FACE_FALLBACK);
     wcscpy(f->cjkFace,  FONT_FACE_FALLBACK_CJK);
     if (f->oppoLoaded > 0 && face_available(f, OPPO_FACE)) {
@@ -228,7 +225,6 @@ int font_init(FontSet *f, double u)
     f->uiBig   = make_ui_font((int)(20 * u + 0.5), f->textFace);
     if (!f->uiClock || !f->uiSmall || !f->uiMid || !f->uiBig) return 0;
 
-    /* FA 图标字体：与之前一致，两个候选家族依次试 */
     wcscpy(f->face, FA_FACE_NAMEID1);
     if (f->loaded > 0) {
         for (int i = 0; i < 2; i++) {

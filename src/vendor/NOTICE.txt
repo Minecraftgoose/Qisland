@@ -1,12 +1,12 @@
 Qisland bundles vendored copies of TWO third-party components (details below).
 
 ================================================================
-[2] lunar-javascript — 每日宜忌通书数据表（仅数据，非代码）
+[2] lunar-javascript — 每日宜忌通书数据表
 Upstream: https://github.com/6tail/lunar-javascript  (v1.7.7)
 License:  MIT (see LICENSE-MIT-lunar.txt in this folder)
 Files:    huangli_data.h
             - LunarUtil.YI_JI       141 词条，用 zh-CN i18n 表还原为中文
-            - LunarUtil.DAY_YI_JI   34,149 字符编码表（原样，分段拼接）
+            - LunarUtil.DAY_YI_JI   34,149 字符编码表
             - LunarUtil.SHEN_SHA[0] 「无」
           The lookup rules (getDayYi / getDayJi) were re-implemented in
           pure C in src/lunar.c. No JS runtime, no network, no data edits.
@@ -15,7 +15,7 @@ Files:    huangli_data.h
           not 戊寅月.
 
 ================================================================
-[1] lunar-calendar  —— 本地农历 / 24 节气库（纯 C）
+[1] lunar-calendar  —— 本地农历 / 24 节气库
 
   lunar-calendar  —  Chinese lunar date and 24 solar terms implemented with C
   Upstream: https://github.com/iseemoon/lunar-calendar

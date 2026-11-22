@@ -1,15 +1,15 @@
-/* cards.c — 卡片注册表（唯一一处定义「有哪些卡片」） */
+/* cards.c — 卡片注册表 */
 #include "cards.h"
 #include "config.h"
 
 static const CardDef cards[] = {
     /* idx id tier draw group slot vdot default */
     { "timer",  TIER_MID,   DRAW_TIMER, GRP_V,   0,    0,    0 },
-    { "date",   TIER_MID,   DRAW_DATE,  GRP_V,   0,    1,    0 },  /* 第二张中卡片 */
+    { "date",   TIER_MID,   DRAW_DATE,  GRP_V,   0,    1,    0 },
     { "note",   TIER_MID,   DRAW_NOTE,  GRP_V,   0,    2,    0 },
     { "perf",   TIER_MID,   DRAW_PERF,  GRP_H,   0,    3,    0 },
-    { "big1",   TIER_BIG,   DRAW_CLIP,  GRP_H,   1,    4,    1 },  /* 竖⑤ = 横2，剪贴板历史 */
-    { "huge1",  TIER_HUGE,  DRAW_SETTINGS, GRP_H, 2,    4,    0 }, /* 横3 = 最后一点，设置页 */
+    { "big1",   TIER_BIG,   DRAW_CLIP,  GRP_H,   1,    4,    1 },
+    { "huge1",  TIER_HUGE,  DRAW_SETTINGS, GRP_H, 2,    4,    0 },
 };
 
 static int card_n(void)
@@ -34,7 +34,6 @@ CardGroup cards_group(int idx) { return cards_at(idx)->group; }
 int       cards_vdot(int idx)  { return cards_at(idx)->vdot; }
 int       cards_slot(int idx)  { return cards_at(idx)->slot; }
 
-/* 组内找指定 slot 的卡片； 找不到返回 -1 */
 static int find_slot(CardGroup g, int slot)
 {
     int n = card_n(), i;
@@ -43,7 +42,6 @@ static int find_slot(CardGroup g, int slot)
     return -1;
 }
 
-/* 组内的 default 卡； 没有则返回 -1 */
 static int find_default(CardGroup g)
 {
     int n = card_n(), i;
@@ -72,7 +70,6 @@ int cards_group_card(CardGroup g, int slot)
     return find_slot(g, slot);
 }
 
-/* 横向组通用查询（表驱动，不写死组数） */
 int cards_is_hgroup(CardGroup g)
 {
     return (g != GRP_V && (int)g > 0 && (int)g < GRP_COUNT) ? 1 : 0;
@@ -136,10 +133,10 @@ int cards_next(int idx, int dir)
     CardGroup gi, gj;
     int d;
 
-    if (j < 0 || j >= n) return i;             /* 整条序列到头停住 */
+    if (j < 0 || j >= n) return i;
     gi = cards[i].group;
     gj = cards[j].group;
-    if (gj == gi) return j;                    /* 同组：线性走 */
+    if (gj == gi) return j;
 
     
     if (cards_is_hgroup(gi) && cards_is_hgroup(gj)) {

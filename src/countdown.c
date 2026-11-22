@@ -1,4 +1,4 @@
-/* countdown.c — 用墙钟推算剩余时间，不累加定时器误差 */
+/* countdown.c — 剩余时间 */
 #include "countdown.h"
 #include "config.h"
 
@@ -45,7 +45,7 @@ void countdown_stop_if_zero(Countdown *c)
     if (c->running && countdown_remain(c) <= 0.0) {
         c->running = 0;
         c->remain  = 0.0;
-        c->ended   = 1;      /* 自然归零 → 触发自动展开提示 */
+        c->ended   = 1;
     }
 }
 
@@ -67,7 +67,7 @@ int countdown_adjust(Countdown *c, int seg, int step)
 
     c->remain = nr;
     c->base   = nr;
-    if (c->running) c->start = qs_now();   /* 运行中：从新剩余值重新起一段 */
+    if (c->running) c->start = qs_now();
     c->ended  = 0;
     return 1;
 }

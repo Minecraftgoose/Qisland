@@ -4,11 +4,10 @@
 #include "canvas.h"
 #include "cards.h"
 
-/* 尺寸档由卡片表决定，不再靠 view 编号区间硬判。 以后插一张新卡只要填 tier，尺寸自动跟上。 */
+/* 尺寸档由卡片表决定 */
 void anim_view_size(const Anim *a, int view,
                     double *w, double *h, double *r)
 {
-    /* 通知卡片不进 cards[]：用覆盖位把当前视图的几何统一切成中卡片， 切档弹簧、目标态命中、窗口余量全部自动跟上，不用改导航表。 */
     if (a->overrideMid) {
         *w = MID_W; *h = MID_H; *r = MID_R;
         return;
@@ -33,7 +32,6 @@ void anim_init_sizes(Anim *a, int scrW, int scrH, double u,
     if (a->hugeW < BIG_W * 1.20) a->hugeW = BIG_W * 1.20;
     if (a->hugeH < BIG_H * 1.20) a->hugeH = BIG_H * 1.20;
 
-    /* 窗口容得下最大卡片 + 展开过冲 1.0825 */
     W = (int)((a->hugeW * OVERSHOOT + 2.0 * PAD) * u + 0.5);
     H = (int)((a->hugeH * OVERSHOOT + 2.0 * PAD) * u + 0.5);
     {
@@ -66,7 +64,7 @@ void anim_tick(Anim *a, double dt, int view)
     const int SUB = 4;
 
     anim_view_size(a, view, &tw, &th, &tr);
-    k = 1.0 - exp(-dt / SIZE_TAU);      /* 切档时尺寸平滑追随 */
+    k = 1.0 - exp(-dt / SIZE_TAU);
     a->curW += (tw - a->curW) * k;
     a->curH += (th - a->curH) * k;
     a->curR += (tr - a->curR) * k;

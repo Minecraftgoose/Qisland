@@ -10,16 +10,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号，如 0.3.5；留空则用 tag，再退回 src/version.h'
+        description: '版本号'
         required: false
         default: ''
       tag:
-        description: 'Release tag；留空则用当前 tag 或 v<版本号>'
+        description: 'Release tag'
         required: false
         default: ''
 
 permissions:
-  contents: write          # gh release create / upload 需要
+  contents: write
 
 concurrency:
   group: qisland-setup-${{ github.ref }}
@@ -35,18 +35,17 @@ jobs:
       INPUT_TAG: ${{ github.event.inputs.tag }}
 
     steps:
-      - name: 取源码
+      - name: get code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 准备 Python（仅用于同步版本号与写环境变量）
+      - name: prepaire python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      # 官方源安装编译 / 打包工具链
-      - name: 安装 MinGW-w64 GCC 与 NSIS（MSYS2 官方仓库）
+      - name: install MinGW-w64 GCC and NSIS
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
@@ -57,27 +56,26 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-nsis
 
-      - name: 组装打包目录
+      - name: make bulid list
         shell: bash
         run: |
           set -euo pipefail
           S="_release/Qisland"
           mkdir -p "$S/源码/src" "$S/源码/nsis" "$S/软件/Qisland/assets" \
                    "$S/软件/Qisland/LICENSES"
-          cp -a src/. "$S/源码/src/"              # 含 qisland.manifest，windres 要读
+          cp -a src/. "$S/源码/src/"
           cp -a nsis/. "$S/源码/nsis/"
 
           cp "assets/fa-solid-900.ttf"      "$S/软件/Qisland/assets/"
           cp "assets/OPPO Sans 4.0.ttf"     "$S/软件/Qisland/assets/"
           cp "assets/notice.wav"            "$S/软件/Qisland/assets/"
 
-          # 第三方许可全文按分发合规要求随包保留，但单独放 LICENSES\， 不混进 assets\（OPPO Sans 要求任何副本保留协议全文）。
           cp -r LICENSES/. "$S/软件/Qisland/LICENSES/"
-          cp LICENSE "$S/软件/Qisland/LICENSE"   # 项目自身 Apache-2.0
+          cp LICENSE "$S/软件/Qisland/LICENSE"
 
           test -f "$S/源码/src/build.bat"
           test -f "$S/源码/src/qisland.manifest"
-          test -f "$S/源码/src/qisland.ico"   # NSIS 的 MUI_ICON / MUI_UNICON 要读
+          test -f "$S/源码/src/qisland.ico"
           test -f "$S/源码/nsis/Qisland.nsi"
           test -f "$S/软件/Qisland/assets/fa-solid-900.ttf"
           test -f "$S/软件/Qisland/assets/OPPO Sans 4.0.ttf"
@@ -91,8 +89,7 @@ jobs:
           test ! -e "$S/软件/Qisland/preview.png"
           test ! -e "$S/软件/Qisland/README.md"
 
-      # 版本：只改 runner 上的工作副本，不回写仓库
-      - name: 解析版本并同步两处字面量
+      - name: check version
         shell: bash
         run: |
           python - <<'PY'
@@ -144,8 +141,7 @@ jobs:
           print(vals)
           PY
 
-      # 编译：SRC / LIBS 仍以 build.bat 为唯一来源 不直接跑 build.bat（末尾有 pause，且 cmd 不展开 *.c）。
-      - name: 编译 Qisland.exe
+      - name: build Qisland.exe
         shell: msys2 {0}
         run: |
           set -euo pipefail
@@ -163,31 +159,28 @@ jobs:
           cp Qisland.exe "../../软件/Qisland/Qisland.exe"
           ls -l "../../软件/Qisland/Qisland.exe"
 
-      - name: 生成 NSIS 安装包
+      - name: build NSIS
         shell: msys2 {0}
         run: |
           set -euo pipefail
           command -v makensis
           test -f /mingw64/share/nsis/Include/MUI2.nsh
           export MSYS2_ARG_CONV_EXCL='*'
-          # NSISDIR 给的是 Windows 原生程序，禁止 MSYS2 再按 POSIX 路径列表转换
           export MSYS2_ENV_CONV_EXCL='NSISDIR'
           export NSISDIR="$(cygpath -w /mingw64/share/nsis)"
           cd "_release/Qisland/源码/nsis"
           makensis Qisland.nsi
           test -s "../../软件/$SETUP_NAME"
           ls -l "../../软件/$SETUP_NAME"
-          # GITHUB_WORKSPACE 是 D:\... 形式，先转成 MSYS2 的 POSIX 路径再给 cp
           cp "../../软件/$SETUP_NAME" "$(cygpath -u "$GITHUB_WORKSPACE")/$SETUP_NAME"
 
-      - name: 备份安装包
+      - name: back
         uses: actions/upload-artifact@v4
         with:
           name: qisland-setup
           path: Qisland-*-Setup.exe
           if-no-files-found: error
 
-      # 发布：Release 里只挂安装包一份资产
       - name: 发布 Release
         shell: bash
         env:

@@ -9,7 +9,6 @@ void input_shutdown(App *a);
 void input_begin(App *a);     /* 进入便签编辑 */
 void input_end(App *a);       /* 结束编辑并保存 */
 int  input_active(const App *a);
-/* 返回 1 = 已处理（window_proc 直接 return 0），0 = 继续 DefWindowProc */
 int  input_message(App *a, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);
 
 #endif /* QISLAND_INPUT_H */

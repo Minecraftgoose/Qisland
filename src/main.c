@@ -105,15 +105,11 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
             if (dt > 0.05) dt = 0.05;
             a->anim.lastTick = now;
             anim_tick(&a->anim, dt, a->ui.view);
-            /* 设置页开关弹簧：和展开弹簧共用同一帧驱动，不设新定时器、 不建线程； 收敛后返回 0，静止零重绘不变。 */
             swAnim = settings_tick(&a->settings, dt);
             ui_poll(a);
-            /* listener 不可用时按剪贴板序列号兜底； 有 listener 时直接返回， 不置脏、不产生任何重绘 */
             clip_poll(&a->clip, a);
-            /* 通知只在 active 时检查过期，静止零开销、不置脏 */
             notify_tick(&a->notify, a, now);
 
-            /* 性能页展开时才采样； 每秒一次，有新样本才置脏。 */
             if (a->visible && a->hover &&
                 cards_draw(a->ui.view) == DRAW_PERF &&
                 perf_tick(&a->perf, now))
@@ -159,7 +155,6 @@ cleanup:
     input_shutdown(a);          /* 编辑中会先保存便签 */
     note_shutdown(&a->note);
     clip_shutdown(&a->clip, a);
-    /* 通知无持久化：退出什么都不用写，内存态随进程消失 */
     balloon_shutdown(a);        /* UnhookWinEvent，退出前反注册 */
     tray_shutdown(a);           /* 必须在 window_shutdown 之前：NIM_DELETE 需要 hwnd */
     perf_shutdown(&a->perf);
@@ -167,7 +162,6 @@ cleanup:
     font_shutdown(&a->fonts);
     sys_shutdown(&a->sys);
     canvas_shutdown(&a->canvas);
-    /* 窗口与托盘都已销毁，安装包才能通过自身的运行中检测 */
     update_launch_pending();
     return 0;
 }

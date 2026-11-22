@@ -1,4 +1,4 @@
-/* font.h — 字体与图标渲染（私有字体 + 4x4 面积覆盖率超采样） */
+/* font.h — 字体与图标渲染 */
 #ifndef QISLAND_FONT_H
 #define QISLAND_FONT_H
 
@@ -6,13 +6,12 @@
 #include "canvas.h"
 
 #define GLYPH_CACHE_MAX 96
-/* 便签正文放到 26px 后，4 倍字号的整行 DIB 宽度会超过 1024， 不加大就会把行尾直接截掉。 4096 足够放下 30+ 个全角字。 */
 #define FONT_TMP_W      4096
 #define FONT_TMP_H      640
 
 typedef struct {
-    unsigned int key;       /* 码点或字符串哈希 */
-    int  px;                /* 输出字号（设备像素） */
+    unsigned int key;
+    int  px;                /* 输出字号 */
     int  kind;              /* 0=UI文字 1=FA图标 2=中文标签 */
     int  w, h;              /* 输出覆盖率位图尺寸 */
     float *cov;             /* w*h，0..1 */
@@ -22,7 +21,7 @@ typedef struct {
     double u;
     WCHAR  fontPath[MAX_PATH];   /* FA 图标字体路径 */
     WCHAR  oppoPath[MAX_PATH];   /* OPPO Sans 4.0 路径 */
-    WCHAR  face[64];             /* FA 图标家族（探测后确定） */
+    WCHAR  face[64];             /* FA 家族 */
     WCHAR  textFace[64];         /* 全局正文家族：OPPO Sans 4.0 或回退 */
     WCHAR  cjkFace[64];          /* 中文正文家族：同上 */
     int    loaded;          /* FA 的 AddFontResourceExW 结果 */
@@ -54,11 +53,9 @@ void font_draw_text(FontSet *f, Canvas *c, const WCHAR *s, int px,
 void font_draw_label(FontSet *f, Canvas *c, const WCHAR *s, int px,
                      double x, double y, int align,
                      int cr, int cg, int cb, double k);
-/* 便签正文：常规字重 + 全局字体（kind 3）。 用户输入的内容，不是界面标签 */
 void font_draw_note(FontSet *f, Canvas *c, const WCHAR *s, int px,
                     double x, double y, int align,
                     int cr, int cg, int cb, double k);
-/* 以与绘制一致的字号测量像素宽度，换行用 */
 int  font_measure(FontSet *f, const WCHAR *s, int len, int px, int kind);
 
 /* 自检结果，供 --diag 输出 */

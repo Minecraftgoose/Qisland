@@ -1,8 +1,8 @@
-/* config.h — 全部硬编码参数集中在这里。 改完重编即可。 */
+/* config.h — 硬编码参数 */
 #ifndef QISLAND_CONFIG_H
 #define QISLAND_CONFIG_H
 
-#include "cards.h"      /* CARDS_VDOTS：菜单与竖点数量由卡片表推导 */
+#include "cards.h"
 
 #define APP_NAME        L"Qisland"
 #define WND_CLASS       L"QislandLayeredClass"
@@ -10,7 +10,6 @@
 
 #define IDI_QISLAND     1
 
-/* 胶囊态右侧白色圆图标（无倒计时时显示）直径占岛高比例。 素材是「中间白、边缘黑」那张，离线编成 64x64 灰度+alpha 数组。 */
 #define CAPSULE_ICON_RATIO  0.56
 
 /* 岛 */
@@ -19,13 +18,11 @@
 #define ISLAND_R        20.0
 #define CLOCK_PAD       24.0
 
-/* 「倒计时」标题：原 0.10*H 太小，放大到 0.18*H（中卡约 23px）。 「滚轮调整时间」与标题同字号，放在标题与读数之间的空行。 */
 #define TITLE_PX_RATIO  0.18
 #define TITLE_PX_MIN    18
 #define TITLE_PX_MAX    34
-#define CD_ISLAND_PX    18.0              /* 胶囊态右侧剩余倒计时的字号 */
+#define CD_ISLAND_PX    18.0              /* 胶囊右侧剩余倒计时的字号 */
 
-/* 字体与抗锯齿 */
 
 #define OPPO_FACE       L"OPPO Sans 4.0"              /* TTF nameID=1/4 */
 #define OPPO_FONT_FILE  L"assets\\OPPO Sans 4.0.ttf"
@@ -33,11 +30,11 @@
 #define FONT_FACE_CJK   OPPO_FACE
 #define FONT_FACE_FALLBACK      L"Segoe UI"
 #define FONT_FACE_FALLBACK_CJK  L"Microsoft YaHei"
-#define FA_FACE_NAMEID1 L"Font Awesome 6 Free Solid"  /* TTF nameID=1/4 */
-#define FA_FACE_TYPO    L"Font Awesome 6 Free"        /* 官方 CSS / nameID=16 */
+#define FA_FACE_NAMEID1 L"Font Awesome 6 Free Solid"
+#define FA_FACE_TYPO    L"Font Awesome 6 Free"
 #define FA_FONT_FILE    L"assets\\fa-solid-900.ttf"
-#define GLYPH_SS        4                 /* 图标/文字的 4x4 面积覆盖率超采样 */
-#define SOFT_PX         1.7               /* 形状边缘过渡带（输出像素） */
+#define GLYPH_SS        4                 /* 图标/文字的超采样 */
+#define SOFT_PX         1.7               /* 形状边缘过渡带） */
 #define SHAPE_SS        4                 /* 形状过渡带子采样倍率 */
 
 #define DEFAULT_VIEW    0
@@ -64,12 +61,11 @@
 #define CD_DEFAULT_SEC  300
 #define CD_MAX_SEC      (24 * 3600 - 1)
 
-/* 卡片下标锚点：少量只读判断（如便签光标）用，视图判定一律走 cards_draw()。 当前表：0 计时器 / 1 日期时钟 / 2 便签 / 3 性能 / 4 大卡片 / 5 超大卡片 */
 #define NOTE_VIEW       2
 #define PERF_VIEW       3
 #define CLIP_VIEW       4
 
-#define DATE_LEFT_X     0.082       /* 右移避开竖点：圆心 0.055W、半径 4.2px， 0.082W 处离点右缘仍有 ~9px 余量 */
+#define DATE_LEFT_X     0.082
 #define DATE_SEP_X      0.536
 #define DATE_RIGHT_X    0.580
 #define DATE_GREG_GAP   8.0         /* 公历与「星期·第N周」之间的间距(px) */
@@ -77,13 +73,13 @@
 #define DATE_CLOCK_PX   0.262       /* 大时钟 ≈ 34px @ 中卡 */
 #define DATE_GREG_PX    0.135       /* 公历 ≈ 17px */
 #define DATE_LUNAR_PX   0.128       /* 右栏干支年 ≈ 16px */
-#define DATE_LUNAR_BIG_PX 0.155     /* 农历日期 ≈ 20px（用户要求放大，未退回 18px） */
-#define DATE_TERM_PX    0.140       /* 节气 ≈ 18px（用户要求放大） */
-#define DATE_FESTIVAL_PX 0.155      /* 节日基准 ≈ 20px，行内放不下自动缩 */
+#define DATE_LUNAR_BIG_PX 0.155     /* 农历日期 ≈ 20px */
+#define DATE_TERM_PX    0.140       /* 节气 ≈ 18px */
+#define DATE_FESTIVAL_PX 0.155      /* 节日基准 ≈ 20px */
 #define DATE_YIJI_PX    0.128       /* 宜 / 忌 事项 ≈ 17px */
 #define DATE_SMALL_PX   0.112       /* 其余辅助信息 ≈ 14px */
 
-/* 垂直节奏：行高 = 字号 × 系数，组间距按 H 取比例； 整组居中。 */
+/* 垂直 */
 #define DATE_ROW_CLOCK  1.00
 #define DATE_ROW_TEXT   1.25
 #define DATE_GAP_A      0.030       /* 时钟 → 日期行 */
@@ -91,7 +87,6 @@
 #define DATE_GAP_YIJI   0.012       /* 宜 → 忌 */
 #define DATE_GAP_RIGHT  0.015       /* 右栏 5 行等距 */
 
-/* HTML：只有 .label 带色（宜 #4ade80 / 忌 #f87171）， .almanac-text 是中性 #ced4da。 上一轮整行带色显得乱，改回标签着色。 */
 #define DATE_YI_R        74
 #define DATE_YI_G       222
 #define DATE_YI_B       128
@@ -104,15 +99,14 @@
 #define DATE_DIGIT_STEP 0.600       /* 时钟数字等宽步进（× 字号） */
 #define DATE_COLON_W    0.340       /* 冒号占位宽（× 字号） */
 
-/* 性能监测（idx 3）：本页标签与硬件信息属封闭清单第 3 条。 计时器页另有用户逐字点名的「滚轮调整时间」一行（与标题同字号）。 */
-#define PERF_SAMPLE_MS  1000              /* 采样间隔； GetSystemTimes 差分必须间隔足够 */
-#define PERF_RING_SS    2                 /* 圆环每像素 2x2 子采样求面积覆盖率 */
+/* 性能监测 */
+#define PERF_SAMPLE_MS  1000
+#define PERF_RING_SS    2
 #define PERF_ARC_SOFT   0.035             
-#define PERF_WARN_PCT   85.0              /* 高负载警示阈值：超过后向暖色插值 */
-#define PERF_RING_BG_R  44                /* 环底保持中性 TRACK，彩环才有对比 */
+#define PERF_WARN_PCT   85.0
+#define PERF_RING_BG_R  44
 #define PERF_RING_BG_G  46
 #define PERF_RING_BG_B  54
-/* 三个环各自可辨识的基色（黑底上够亮、不过饱和）。 色相刻意拉开：冷蓝 CPU / 紫 内存 / 青绿 磁盘。 */
 #define PERF_CPU_R      86
 #define PERF_CPU_G      186
 #define PERF_CPU_B      244
@@ -122,55 +116,52 @@
 #define PERF_DISK_R     104
 #define PERF_DISK_G     214
 #define PERF_DISK_B     158
-#define PERF_WARN_R     242               /* 高负载：暖橙，功能性警示 */
+#define PERF_WARN_R     242
 #define PERF_WARN_G     138
 #define PERF_WARN_B     96
-#define PERF_ARC_SHADE  0.78              /* 弧起点亮度，沿弧渐增到 1.0 */
-#define PERF_NUM_MIX    0.38              /* 环心数字：基色向白提亮，保证可读 */
+#define PERF_ARC_SHADE  0.78
+#define PERF_NUM_MIX    0.38
 
-/* 第三张中卡片：便签（idx 2） */
-#define NOTE_MAX        2048              /* UTF-16 字符上限 */
+/* 便签 */
+#define NOTE_MAX        2048
 #define NOTE_MAX_LINES  192
 #define NOTE_FILE       L"Qisland\\note.txt"   /* 相对 %APPDATA% */
-#define NOTE_PAD        7.0               /* 文本区内边距（设备像素） */
-#define NOTE_SCROLL_W   5.0               /* 美化滚动条预留宽度 */
-/* 正文字号：按文本区高度取比例，下限 22、上限 30。 中卡片约 480×130 时取到 26px（原来 12px 的两倍多）。 */
-/* 内容区因顶部标题从 0.88H 收到 0.75H，比例同步补偿，字号不变 */
+#define NOTE_PAD        7.0
+#define NOTE_SCROLL_W   5.0
 #define NOTE_FONT_RATIO 0.252
 #define NOTE_FONT_MIN   22
 #define NOTE_FONT_MAX   30
-#define NOTE_LINE_GAP   1.28              /* 行高 / 字号：字大了要收紧，保证 3 行可见 */
+#define NOTE_LINE_GAP   1.28              /* 行高 / 字号 */
 #define NOTE_SCROLL_STEP 1                /* 滚轮一格滚动行数 */
-#define NOTE_THUMB_R    150               /* 极淡的圆头短滑块（不画轨道） */
+#define NOTE_THUMB_R    150               /* 圆头短滑块 */
 #define NOTE_THUMB_G    156
 #define NOTE_THUMB_B    172
-/* 选中指示：暗蓝灰，压在黑底上不刺眼； 白字仍保持原色 */
 #define NOTE_SEL_R      82
 #define NOTE_SEL_G      112
 #define NOTE_SEL_B      168
-#define NOTE_SEL_K      0.62              /* 高亮合成系数 */
+#define NOTE_SEL_K      0.62
 
 #define CLIP_FILE       L"Qisland\\clipboard.bin"   /* 相对 %APPDATA% */
 #define CLIP_TEST_FILE  L"Qisland\\clipboard_test.bin" /* 诊断/演示隔离，不碰真实历史 */
-#define CLIP_PAD        7.0               /* 内容区内边距（设备像素） */
+#define CLIP_PAD        7.0               /* 内容区内边距 */
 #define CLIP_SCROLL_W   8.0               /* 右缘滚动指示预留宽度 */
-#define CLIP_CHECK_W    28.0              /* 行右端「已回填」图标预留宽度 */
-#define CLIP_FONT_RATIO 0.145             /* 内容区 0.80H→0.69H 后补偿，字号仍 26 */
+#define CLIP_CHECK_W    28.0
+#define CLIP_FONT_RATIO 0.145
 #define CLIP_FONT_MIN   18
 #define CLIP_FONT_MAX   26
 #define CLIP_LINE_GAP   1.48              /* 行高 / 字号 */
 #define CLIP_SCROLL_STEP 1                /* 滚轮一格滚动行数 */
 
-/* 即时通知：与中卡片同尺寸； 左侧软件图标/FA，右侧程序名 + 详细信息。 */
-#define NOTIFY_MS       5000              /* 默认显示毫秒数； 到点自动消失 */
-#define NOTIFY_VIEW_TAG  -1              /* 通知不是导航卡片，不占竖点/横点 */
+/* 即时通知 */
+#define NOTIFY_MS       5000
+#define NOTIFY_VIEW_TAG  -1
 
 #define NOTIFY_SOUND_FILE   L"notice.wav"
 
 #define DPI_BASE            96            /* 100% = 96 DPI */
 #define DPI_SCALE_MIN       1.0
 #define DPI_SCALE_MAX       3.0           /* 支持到 300% */
-#define DPI_SS_THRESHOLD    1.25          /* 高 DPI 时形状超采样降档到 2，省光栅化 */
+#define DPI_SS_THRESHOLD    1.25
 
 #define NOTIFY_ICON_X   0.050            /* 图标区左端（占卡片宽） */
 #define NOTIFY_ICON_S   0.420            /* 图标边长（占卡片高） */
@@ -185,7 +176,7 @@
 #define TIP_PX          14.0
 #define TIP_PAD_X       11.0
 #define TIP_PAD_Y       7.0
-#define TIP_GAP         9.0            /* 气泡与按钮之间的间隙（尖角占这段） */
+#define TIP_GAP         9.0            /* 气泡与按钮之间的间隙 */
 #define TIP_R           6.0
 #define TIP_TRI_W       6.0            /* 尖角底边半宽 */
 #define TIP_TRI_H       7.0
@@ -198,11 +189,10 @@
 #define TIP_FG_R        240
 #define TIP_FG_G        242
 #define TIP_FG_B        248
-#define HOVER_BG_R      46            /* 悬浮数字段的淡底，纯视觉，无文字 */
+#define HOVER_BG_R      46
 #define HOVER_BG_G      50
 #define HOVER_BG_B      60
 
-/* 配色：完全中性的单色。 草图里的紫框/绿框/红框只是标注示意， 不进入实际 UI； */
 #define CB_R 12
 #define CB_G 12
 #define CB_B 14
@@ -224,39 +214,34 @@
 #define HDOTS_HIT_PAD_X 10.0              /* 命中区左右各扩几像素 */
 #define HDOTS_R_ON      4.2               /* 当前点半径：与竖点完全一致 */
 #define HDOTS_R_OFF     2.6               /* 非当前点半径：与竖点完全一致 */
-/* 竖点纵向分布仍用这两个； 横点间距由它推出来的 pitch 决定 */
 #define HDOTS_P0        0.30
 #define HDOTS_P1        0.85
-#define HDOTS_PITCH_MAX 38.0              /* 设备像素（逻辑），乘 u； 密集上限 */
+#define HDOTS_PITCH_MAX 38.0
 
 /* 计时器 / 消息 ID */
 #define IDT_COUNTDOWN   2
 #define HOTKEY_ID       1
 #define WM_APP_SHOW     (WM_APP + 1)
 
-/* 软件版本：唯一来源在 version.h（C 代码 + windres 资源 + NSIS 脚本共用 0.2）。 「关于」页按用户要求先留空，不在界面上写版本号。 */
-
-/* 系统托盘图标（窗口本身的右键菜单已删除，菜单只在托盘图标上）。 uCallbackMessage 用 WM_APP+3，避开 WM_APP_SHOW(+1) 与气泡信号(+2)。 */
 #define WM_APP_TRAY       (WM_APP + 3)
 #define TRAY_UID          1
 #define TRAY_MENU_SHOW    100
 #define TRAY_MENU_EXIT    101
 
-#define WM_APP_BALLOON_SIGNAL   (WM_APP + 2)   /* WinEvent 回调 -> 主线程 */
-#define BALLOON_COOLDOWN_MS     3000           /* 同一气泡窗口最小间隔 */
-#define BALLOON_GLOBAL_GAP_MS   1200           /* 全局最小间隔（气泡排队连发） */
-#define BALLOON_SEND_TIMEOUT_MS 200            /* SendMessageTimeout 防 explorer 卡住 */
-#define BALLOON_TEXT_MAX        256            /* 气泡文本上限（NOTIFYICONDATA szInfo=256） */
-#define BALLOON_TITLE_MAX       100            /* 官方：szInfoTitle <= 100 TCHAR 含 NULL */
-#define BALLOON_TTS_BALLOON     0x40           /* 官方 Tooltip Styles，版本 5.80 */
+#define WM_APP_BALLOON_SIGNAL   (WM_APP + 2)
+#define BALLOON_COOLDOWN_MS     3000
+#define BALLOON_GLOBAL_GAP_MS   1200
+#define BALLOON_SEND_TIMEOUT_MS 200
+#define BALLOON_TEXT_MAX        256
+#define BALLOON_TITLE_MAX       100
+#define BALLOON_TTS_BALLOON     0x40
 #define BALLOON_CLASS           L"tooltips_class32"
-#define BALLOON_APP_NAME        L"托盘消息"    /* 仅当标题读不到时的兜底，非来源 exe 名 */
-#define BALLOON_NO_TEXT         L"有新消息"    /* 读不到文本时只给信号，不编造正文 */
-/* 灵动岛本身的右键菜单已删除：不再有 MENU_VIEW0 / MENU_VIEW_LAST， 跳卡只靠滚轮与竖/横圆点。 cards_vdot 仍被 ui.c 的竖点绘制使用， 函数本身保留。 */
+#define BALLOON_APP_NAME        L"托盘消息"
+#define BALLOON_NO_TEXT         L"有新消息"
 
-#define SET_FILE          L"settings.bin"   /* %APPDATA%\Qisland\，只存 tab + 收起掩码 */
+#define SET_FILE          L"settings.bin"
 #define SET_RUN_KEY       L"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
-#define SET_RUN_VAL       L"Qisland"        /* HKCU，开机自启动唯一真值 */
+#define SET_RUN_VAL       L"Qisland"
 
 #define SET_LEFT_X        0.055            /* 左栏左端 */
 #define SET_LEFT_W        0.200            /* 左栏宽 */
@@ -270,7 +255,7 @@
 #define SET_TAB_H         0.100
 #define SET_GROUP_Y       0.150            /* 「收起岛设置」组标题 */
 #define SET_GROUP_H       0.090
-#define SET_ROW_Y0        0.265            /* 四个收起条件（单选必选） */
+#define SET_ROW_Y0        0.265
 #define SET_ROW_DY        0.108
 #define SET_ROW_H         0.092
 #define SET_LINE_Y        0.710            /* 两组之间的极淡横线 */
@@ -279,7 +264,6 @@
 #define SET_SW_H          0.048            /* 开关高（占卡片高） */
 #define SET_TAB_BAR_GAP   8.0              /* 选中页签左侧小竖条的偏移（逻辑像素） */
 
-/* 开关弹簧：ω=√260≈16.1、ζ=26/(2ω)≈0.81，轻微回弹，约 0.4s 收敛。 收敛后 settings_tick() 返回 0，主循环恢复静止零重绘。 */
 #define SET_SW_K          260.0
 #define SET_SW_DAMP       26.0
 
@@ -293,7 +277,6 @@
 #define SET_ROW_PX_MIN     16
 #define SET_ROW_PX_MAX     24
 
-/* 开关打开时的冷蓝； 关闭用 TRACK_* 中性灰。 */
 #define SET_ON_R          86
 #define SET_ON_G          186
 #define SET_ON_B          244
@@ -303,7 +286,7 @@
 #define ABOUT_HEAD_GAP      0.024           /* 图标与文字之间的 / 卡片宽 */
 #define ABOUT_HR_Y          0.205           /* 头部下方横线 */
 #define ABOUT_BODY_Y        0.235           /* 滚动区起点 */
-#define ABOUT_BODY_H        0.625           /* 滚动区高，止于 0.860H（避开 0.93H 横点） */
+#define ABOUT_BODY_H        0.625           /* 滚动区高，止于 0.860H */
 #define ABOUT_SCROLL_GAP    0.028           /* 右缘留给滚动条（占卡片高） */
 #define ABOUT_COL_GAP       0.030           /* 历史两列布局常量，现为单列，保留兼容 */
 #define ABOUT_BLOCK_GAP     0.036           /* 单列板块之间的 / 卡片高 */
@@ -329,7 +312,6 @@
 #define ABOUT_ICON_TINT_G   0.90
 #define ABOUT_ICON_TINT_B   0.98
 
-/* 文字配色：胶囊常规 / 主体亮 / 许可淡 / 板块小标题 / 仓库蓝 */
 #define ABOUT_TEXT_R        201
 #define ABOUT_TEXT_G        206
 #define ABOUT_TEXT_B        214
@@ -346,12 +328,9 @@
 #define ABOUT_REPO_G        178
 #define ABOUT_REPO_B        217
 
-/* 仓库地址：about.c 绘制 / settings_boxes 命中框 / sys.c 打开浏览器三处唯一来源。 */
 #define QISLAND_REPO_URL    L"https://github.com/Minecraftgoose/Qisland/"
-/* GitHub Releases API 用的 owner / repo，与上面那条地址同源，别两处各写一份。 */
 #define QI_REPO_OWNER       "Minecraftgoose"
 #define QI_REPO_NAME        "Qisland"
-/* 安装包下载加速前缀，后面直接接完整 GitHub 直链。 */
 #define QI_GHPROXY_PREFIX   "https://v4.gh-proxy.org/"
 
 #define UPD_TITLE_Y         0.170       /* 「当前版本」小标题 */
@@ -377,7 +356,7 @@
 #define UPD_TEXT_PX_MIN     13
 #define UPD_TEXT_PX_MAX     18
 
-#define UPD_BTN_R           86          /* 按钮底色，与 SET_ON_* 同色系 */
+#define UPD_BTN_R           86
 #define UPD_BTN_G           186
 #define UPD_BTN_B           244
 

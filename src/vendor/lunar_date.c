@@ -77,7 +77,6 @@ const char * MONTH_CN[]       = { "月", "正", "二", "三", "四", "五", "六
 const char * DAY_TENS_DIGIT[] = { "初" ,"十", "廿", "卅" };
 const char * DAY_UNIT_DIGIT[] = { "日", "一", "二", "三", "四", "五", "六", "七", "八", "九" };
 
-/* 每年的正小寒点到各节期正节期点（即十五度倍数点）的分钟数。 地球公转每年都一样。 */
 const uint32_t SOLAR_TERM_OFFSET[] = { // 各节气与小寒偏移的分钟数
 	     0,  21208,  42467,  63836,  85337, 107014, 128867, 150921,
     173149, 195551, 218072, 240693, 263343, 285989, 308563, 331033,
@@ -144,7 +143,7 @@ const FESTIVAL COMMEMORATION_DAY[] = {
     { .month = 2,  .day = 2,  .flags = { .is_holiday = 0, .date_type = 1 }, "龙抬头" },
     { .month = 9,  .day = 9,  .flags = { .is_holiday = 0, .date_type = 1 }, "中国老年节[1989]" },
 
-    { .month = 4,  .day = 53, .flags = { .is_holiday = 0, .date_type = 3 }, "秘书节[1952]" },   // 4月最后一个完整星期的周三
+    { .month = 4,  .day = 53, .flags = { .is_holiday = 0, .date_type = 3 }, "秘书节[1952]" },
 };
 
 /* MACROS */
@@ -250,7 +249,6 @@ uint8_t get_leap_month(int32_t lunar_year)
     // return (uint8_t)(LUNAR_INFO[lunar_year - MIN_YEAR] >> 20) & 0x0F;
 }
 
-/* 传回农历 year年的总天数 @param year 将要计算的年份 @return 返回传入年份的总天数 */
 uint32_t get_lunar_year_days(int32_t year)
 {
     uint32_t sum = get_leap_month(year) > 0 ? 377 : 348;
@@ -444,8 +442,8 @@ const char * get_week_festival(uint8_t month, uint8_t day, uint8_t days_of_month
 			}
 			else
 			{
-				advance = (day + 6) / 7;                    // 正数第几周，从1开始，取值1、2、3、4
-    			reverse = (days_of_month - day) / 7 + 1;   // 倒数第几周，从1开始，取值1、2、3、4
+				advance = (day + 6) / 7;
+    			reverse = (days_of_month - day) / 7 + 1;
 			}
 
 			if (no == advance || no == (reverse + 4))
@@ -485,8 +483,8 @@ const char * get_week_festival(uint8_t month, uint8_t day, uint8_t days_of_month
                 }
                 else
                 {
-                    advance = (day + 6) / 7;                   // 正数第几周，从1开始，取值1、2、3、4
-                    reverse = (days_of_month - day) / 7 + 1;   // 倒数第几周，从1开始，取值1、2、3、4
+                    advance = (day + 6) / 7;
+                    reverse = (days_of_month - day) / 7 + 1;
                 }
 
                 if (no == advance || no == (reverse + 4))
@@ -596,8 +594,8 @@ const char * get_festival(int32_t year, uint8_t month, uint8_t day)
                 }
                 else
                 {
-                    advance = (day + 6) / 7;                   // 正数第几周，从1开始，取值1、2、3、4
-                    reverse = (days_of_month - day) / 7 + 1;   // 倒数第几周，从1开始，取值1、2、3、4
+                    advance = (day + 6) / 7;
+                    reverse = (days_of_month - day) / 7 + 1;
                 }
 
                 if (no == advance || no == (reverse + 4))

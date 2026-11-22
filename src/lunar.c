@@ -1,4 +1,4 @@
-/* lunar.c — 本地农历库封装实现 */
+/* lunar.c — 本地农历库 */
 #include "lunar.h"
 #include "vendor/lunar_date.h"
 #include "vendor/solar_term.h"
@@ -70,7 +70,6 @@ static void month_pillar_by_term(int y, int m, int d, WCHAR *out, int cap)
     int k, i, ganYear, gan, zhi;
     WCHAR gz[3];
 
-    /* 默认子月：1 月 1 日~小寒前仍在上一年大雪之后 */
     k = 10;
     for (i = 0; i < 12; i++) {
         long t = term_daynum(y, kJie[i].term);
@@ -237,7 +236,6 @@ int lunar_get(int y, int m, int d, LunarInfo *o)
     u8_to_w(get_year_ganzhi_str(ld.year),  o->yearGZ, 8);
     u8_to_w(get_animal_str(ld.year), o->animal, 8);
 
-    /* 日柱用库的甲戌日锚点； 月柱用节气月(月建)，与通书表口径一致 */
     u8_to_w(get_day_ganzhi_str((int32_t)y, (uint8_t)m, (uint8_t)d),
             dayGZ, 8);
     _snwprintf(o->dayGZ, 8, L"%s", dayGZ); o->dayGZ[7] = 0;

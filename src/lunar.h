@@ -1,4 +1,4 @@
-/* lunar.h — 本地农历库封装（无网络、无线程、无缓存、无状态） */
+/* lunar.h — 本地农历库 */
 #ifndef QISLAND_LUNAR_H
 #define QISLAND_LUNAR_H
 
@@ -22,13 +22,11 @@ typedef struct {
     int   termToday;        /* 1 = 今天正是某个节气的交节日 */
     int   daysToNextTerm;
 
-    /* 每日宜忌：各取前 3 条，来自 vendored 通书表（MIT），离线查表。 月柱用「节气月(月建)」口径，不是农历月 —— 与上游 6tail 一致。 */
     WCHAR yi[3][16];
     WCHAR ji[3][16];
     int   yiN, jiN;
 } LunarInfo;
 
-/* 同步查询。 返回 valid； */
 int lunar_get(int y, int m, int d, LunarInfo *out);
 
 #endif /* QISLAND_LUNAR_H */

@@ -8,7 +8,7 @@
 static void changed(App *a)
 {
     a->dirty = 1;
-    note_save(&a->note, 0);        /* 700ms 节流，防意外退出丢字 */
+    note_save(&a->note, 0);
 }
 
 static void ime_pos(App *a)
@@ -83,7 +83,7 @@ void input_begin(App *a)
 void input_end(App *a)
 {
     if (!a->note.editing) return;
-    note_set_editing(&a->note, 0);      /* 内部强制保存 */
+    note_set_editing(&a->note, 0);
     if (a->hwnd) SetFocus(NULL);
     restore_noactivate(a);
     a->dirty = 1;
@@ -100,7 +100,6 @@ static void paste(App *a)
         if (p) {
             int n = (int)wcslen(p);
             if (n > NOTE_MAX) n = NOTE_MAX;
-            /* note_paste 走 stb_textedit_paste，会自动替换当前选区， 并把 CRLF / TAB 归一化； 不再复制全文。 */
             note_paste(&a->note, p, n);
             changed(a);
             GlobalUnlock(h);
@@ -115,9 +114,8 @@ int input_message(App *a, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
     switch (msg) {
     case WM_KILLFOCUS:
-        /* 切到别的窗口：保存并退出编辑，恢复不抢焦点 */
         input_end(a);
-        return 0;                     /* 仍交给 DefWindowProc */
+        return 0;
 
     case WM_IME_STARTCOMPOSITION:
         ime_pos(a);
@@ -144,7 +142,7 @@ int input_message(App *a, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     case WM_IME_ENDCOMPOSITION:
         return 0;
     case WM_IME_CHAR:
-        return 1;                     /* 中文已由 GCS_RESULTSTR 插入，吞掉 */
+        return 1;
 
     case WM_CHAR: {
         WCHAR ch = (WCHAR)wp;
@@ -164,7 +162,6 @@ int input_message(App *a, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         int sk    = shift ? NK_SHIFT : 0;
         int v = (int)wp;
         if (v == VK_ESCAPE) { input_end(a); return 1; }
-        /* Ctrl 组合：全选 / 复制 / 剪切 / 粘贴 / 撤销重做 / 选词 / 全文首尾 */
         if (ctrl) {
             switch (v) {
             case 'A': note_select_all(&a->note); a->dirty = 1; ime_pos(a); return 1;

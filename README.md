@@ -6,12 +6,16 @@
 </div>
 
 ## 使用
-到发行版页面下载最新安装包，已安装的用户可以在`更新>检查更新`获取新版本
+到[发行版页面](https://github.com/Minecraftgoose/Qisland/releases) 下载最新安装包，已安装的用户可以在`更新>检查更新`获取新版本
 
 ## 性能
-<img width="604" height="261" alt="Administer在2026年11月22日00时31分07秒使用“GOOSEPC”截图" src="https://github.com/user-attachments/assets/0d361645-84b4-47c8-a6bc-8c9cc0d76e55" />
+<img width="604" height="261" alt="性能" src="https://github.com/user-attachments/assets/0d361645-84b4-47c8-a6bc-8c9cc0d76e55" />
 
 占用大约为`5MB`,CPU几乎不占用
+
+## 支持
+
+本程序支持Windows7，Windows10、11理论上支持但未曾测试
 
 ## 功能
 
@@ -38,6 +42,12 @@
 
 ## 第三方资源
 
-OPPO Sans 4.0
+[OPPO Sans 4.0](https://www.coloros.com/article/A00000074/)
 
-Font Awesome Free 6.7.2
+[Font Awesome Free 6.7.2](https://fontawesome.com/)
+
+## 开源许可
+
+Qisland——[Apache 2.0](LICENSE)
+
+其他许可证文件位于`LICENSES/`下，二次开发请保留

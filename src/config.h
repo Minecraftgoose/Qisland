@@ -55,6 +55,15 @@
 #define EXP_DAMP_OUT    13.0
 #define EXP_DAMP_IN     19.0
 #define SIZE_TAU        0.11
+
+/* 启动入场：胶囊从顶部一条细线长出，参数集中在这里调 */
+#define INTRO_MS         520          /* 总时长，毫秒 */
+#define INTRO_LINE_W     2.0         /* 起始细线宽，逻辑像素 */
+#define INTRO_LINE_H     2.0         /* 起始细线高，逻辑像素 */
+#define INTRO_H_DELAY    0.10        /* 高度比宽度晚起步的比例 */
+#define INTRO_BACK_C1    1.62        /* 宽度回弹强度，越大弹得越明显 */
+#define INTRO_TEXT_AT    0.55        /* 岛内文字开始淡入的进度 */
+#define INTRO_TEXT_LIFT  6.0         /* 文字上移归位的距离，逻辑像素 */
 #define HOVER_MARGIN    2.0
 #define WHEEL_DEBOUNCE  90
 #define APPLY_THROTTLE  120

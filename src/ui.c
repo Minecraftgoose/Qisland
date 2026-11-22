@@ -1100,6 +1100,7 @@ void ui_poll(App *a)
 void ui_render(App *a)
 {
     double w, h, r, W, H, ta;
+    double iw, ih, ir, fade, lift;
     WCHAR clockW[16];
     char clockA[16];
 
@@ -1108,16 +1109,18 @@ void ui_render(App *a)
     qs_clock_w(clockW, 16);
     anim_geometry(&a->anim, &w, &h, &r);
     W = w * a->u; H = h * a->u;
+    anim_intro_geometry(&a->anim, w, h, r, &iw, &ih, &ir, &fade, &lift);
 
-    canvas_shape(&a->canvas, w, h, r);
+    canvas_shape(&a->canvas, iw, ih, ir);
 
     /* 岛态：左侧时钟（数字，展开时淡出）； 倒计时进行时右侧同时显示 剩余时间。 */
-    if (a->anim.exp < 0.98) {
+    if (a->anim.exp < 0.98 && fade > 0.0) {
         double sx = ((double)a->canvas.W - ISLAND_W * a->u) * 0.5;
-        ta = 1.0 - qs_clamp(a->anim.exp * 1.7, 0.0, 1.0);
+        double cy = ISLAND_H * a->u * 0.5 + lift * a->u;
+        ta = (1.0 - qs_clamp(a->anim.exp * 1.7, 0.0, 1.0)) * fade;
         font_draw_text(&a->fonts, &a->canvas, clockW,
                        (int)(20 * a->u + 0.5),
-                       sx + CLOCK_PAD * a->u, ISLAND_H * a->u * 0.5, 0,
+                       sx + CLOCK_PAD * a->u, cy, 0,
                        INK_R, INK_G, INK_B, ta);
 
         if (a->cd.running) {
@@ -1131,18 +1134,18 @@ void ui_render(App *a)
             font_draw_text(&a->fonts, &a->canvas, cdw,
                            (int)(CD_ISLAND_PX * a->u + 0.5),
                            sx + ISLAND_W * a->u - CLOCK_PAD * a->u,
-                           ISLAND_H * a->u * 0.5, 2,
+                           cy, 2,
                            ACCENT_R, ACCENT_G, ACCENT_B, ta);
         } else {
             
             double d = CAPSULE_ICON_RATIO * ISLAND_H * a->u;
             double right = sx + ISLAND_W * a->u - CLOCK_PAD * a->u;
             capsule_icon_draw(&a->canvas, right - d * 0.5,
-                              ISLAND_H * a->u * 0.5, d, ta);
+                              cy, d, ta);
         }
     }
 
-    if (a->anim.exp > 0.02) {
+    if (a->anim.introDone && a->anim.exp > 0.02) {
         double k = qs_clamp((a->anim.exp - 0.22) / 0.55, 0.0, 1.0);
         ui_layout(a, W, H);
         ui_draw(a, W, H, k);

@@ -4,6 +4,55 @@
 #include "canvas.h"
 #include "cards.h"
 
+/* 宽度带一次回弹，高度用慢起步的三次曲线 */
+static double intro_back(double x)
+{
+    double u = x - 1.0;
+    return 1.0 + (INTRO_BACK_C1 + 1.0) * u * u * u + INTRO_BACK_C1 * u * u;
+}
+
+static double intro_cubic(double x)
+{
+    double u = 1.0 - x;
+    return 1.0 - u * u * u;
+}
+
+void anim_intro_begin(Anim *a)
+{
+    a->intro = 0.0;
+    a->introDone = 0;
+    a->introStart = qs_now();
+}
+
+void anim_intro_geometry(const Anim *a, double w, double h, double r,
+                         double *iw, double *ih, double *ir,
+                         double *fade, double *lift)
+{
+    double t, x, fw, fh;
+    *iw = w; *ih = h; *ir = r; *fade = 1.0; *lift = 0.0;
+    if (a->introDone) return;
+
+    t = a->intro;
+    if (t < 0.0) t = 0.0;
+    if (t > 1.0) t = 1.0;
+    fw = intro_back(t);
+    x = (t - INTRO_H_DELAY) / (1.0 - INTRO_H_DELAY);
+    if (x < 0.0) x = 0.0;
+    if (x > 1.0) x = 1.0;
+    fh = intro_cubic(x);
+
+    *iw = INTRO_LINE_W + (w - INTRO_LINE_W) * fw;
+    *ih = INTRO_LINE_H + (h - INTRO_LINE_H) * fh;
+    *ir = r * fh;
+    if (*ir > *ih * 0.5) *ir = *ih * 0.5;
+
+    x = (t - INTRO_TEXT_AT) / (1.0 - INTRO_TEXT_AT);
+    if (x < 0.0) x = 0.0;
+    if (x > 1.0) x = 1.0;
+    *fade = x;
+    *lift = (1.0 - x) * INTRO_TEXT_LIFT;
+}
+
 /* 尺寸档由卡片表决定 */
 void anim_view_size(const Anim *a, int view,
                     double *w, double *h, double *r)
@@ -63,6 +112,17 @@ void anim_tick(Anim *a, double dt, int view)
     int i;
     const int SUB = 4;
 
+    if (!a->introDone) {
+        double t = (double)(qs_now() - a->introStart) / (double)INTRO_MS;
+        if (t >= 1.0) {
+            /* 先渲染一帧终值，下一帧才收手 */
+            if (a->intro >= 1.0) a->introDone = 1;
+            else a->intro = 1.0;
+        } else {
+            a->intro = t;
+        }
+    }
+
     anim_view_size(a, view, &tw, &th, &tr);
     k = 1.0 - exp(-dt / SIZE_TAU);
     a->curW += (tw - a->curW) * k;
@@ -84,6 +144,7 @@ void anim_tick(Anim *a, double dt, int view)
 int anim_active(const Anim *a, int view)
 {
     double tw, th, tr;
+    if (!a->introDone) return 1;
     anim_view_size(a, view, &tw, &th, &tr);
     if (fabs(a->curW - tw) > 0.05 || fabs(a->curH - th) > 0.05 ||
         fabs(a->curR - tr) > 0.05) return 1;

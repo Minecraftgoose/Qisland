@@ -88,6 +88,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdline, int show)
 
     a->anim.lastTick = qs_now();
     a->lastRender = a->anim.lastTick;
+    anim_intro_begin(&a->anim);
     a->dirty = 0;
     ui_render(a);
 

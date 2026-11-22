@@ -75,13 +75,13 @@ void update_result_wheel(int dir, double viewH)
 
 /* 小工具 */
 static void tag_to_ui(const char *tag, WCHAR *out, int cap);
-/* "v1.10.2" / "1.10" / "v2" → 三段数字； 返回 0 = 解析不出来 */
-static int parse_ver(const char *t, int *maj, int *min, int *pat)
+/* "v1.10.2" / "1.10" / "v2" / "v0.3.5.1" → 最多四段数字； 返回 0 = 解析不出来 */
+static int parse_ver(const char *t, int *maj, int *min, int *pat, int *rev)
 {
-    int v[3] = { 0, 0, 0 }, n = 0, i;
+    int v[4] = { 0, 0, 0, 0 }, n = 0, i;
     while (*t == ' ' || *t == 'v' || *t == 'V' || *t == '\t') t++;
     if (*t < '0' || *t > '9') return 0;
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 4; i++) {
         int x = 0;
         if (*t < '0' || *t > '9') break;
         while (*t >= '0' && *t <= '9') {
@@ -93,15 +93,16 @@ static int parse_ver(const char *t, int *maj, int *min, int *pat)
         if (*t != '.') break;
         t++;
     }
-    *maj = v[0]; *min = v[1]; *pat = v[2];
+    *maj = v[0]; *min = v[1]; *pat = v[2]; *rev = v[3];
     return n > 0;
 }
 
-static int ver_cmp(int a0, int a1, int a2, int b0, int b1, int b2)
+static int ver_cmp(int a0, int a1, int a2, int a3, int b0, int b1, int b2, int b3)
 {
     if (a0 != b0) return a0 < b0 ? -1 : 1;
     if (a1 != b1) return a1 < b1 ? -1 : 1;
     if (a2 != b2) return a2 < b2 ? -1 : 1;
+    if (a3 != b3) return a3 < b3 ? -1 : 1;
     return 0;
 }
 
@@ -494,7 +495,8 @@ static DWORD WINAPI upd_thread(LPVOID arg)
         if (m) {
             WCHAR info[UPD_TEXT_CHARS], wtag[64], wowner[128], wname[128];
             char tag[64] = { 0 };
-            int maj = 0, min = 0, pat = 0, cma = 0, cmi = 0, cpa = 0;
+            int maj = 0, min = 0, pat = 0, rev = 0;
+            int cma = 0, cmi = 0, cpa = 0, cre = 0;
 
             wtag[0] = wowner[0] = wname[0] = 0;
             MultiByteToWideChar(CP_UTF8, 0, tag, -1, wtag, 64);
@@ -504,13 +506,13 @@ static DWORD WINAPI upd_thread(LPVOID arg)
             if (!ok) {
                 set_raw(m, L"API", st, json, jlen, api, we, ext);
             } else if (!json_str(json, "tag_name", tag, sizeof(tag)) ||
-                       !parse_ver(tag, &maj, &min, &pat)) {
+                       !parse_ver(tag, &maj, &min, &pat, &rev)) {
                 set_raw(m, L"API（读不到版本号）", 200, json, jlen, api, 0, NULL);
             } else {
                 
                 tag_to_ui(tag, wtag, 64);
-                parse_ver(QI_VERSION_STR, &cma, &cmi, &cpa);
-                if (ver_cmp(maj, min, pat, cma, cmi, cpa) <= 0) {
+                parse_ver(QI_VERSION_STR, &cma, &cmi, &cpa, &cre);
+                if (ver_cmp(maj, min, pat, rev, cma, cmi, cpa, cre) <= 0) {
                     _snwprintf(info, UPD_TEXT_CHARS,
                         L"已经是最新版了。\n\n当前版本：%s\n最新版本：%s",
                         QI_VERSION_UI_W, wtag);

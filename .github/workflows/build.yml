@@ -100,16 +100,20 @@ jobs:
           nsi = os.path.join(S, "源码", "nsis", "Qisland.nsi")
 
           def parse(s):
-              m = re.match(r"^[vV]?(\d+)\.(\d+)(?:\.(\d+))?(.*)$", (s or "").strip())
+              m = re.match(r"^[vV]?(\d+)\.(\d+)(?:\.(\d+))?(?:\.(\d+))?(.*)$", (s or "").strip())
               if not m:
                   return None
               a, b = int(m.group(1)), int(m.group(2))
               c = int(m.group(3) or 0)
-              ver = f"{a}.{b}" if m.group(3) is None else f"{a}.{b}.{c}"
-              return ver, f"{a}.{b}.{c}.0", f"{a},{b},{c},0", bool(re.search(r"[-+]", m.group(4)))
+              d = int(m.group(4) or 0)
+              parts = [a, b]
+              if m.group(3) is not None: parts.append(c)
+              if m.group(4) is not None: parts.append(d)
+              ver = ".".join(str(x) for x in parts)
+              return ver, f"{a}.{b}.{c}.{d}", f"{a},{b},{c},{d}", bool(re.search(r"[-+]", m.group(5)))
 
           cur = re.search(r'QI_VERSION_STR\s+"([^"]+)"', open(vh, encoding="utf-8").read())
-          current = cur.group(1) if cur else "0.3.5"
+          current = cur.group(1) if cur else "0.3.5.1"
           ref = os.environ.get("GITHUB_REF", "")
           tag = os.environ.get("INPUT_TAG", "").strip() or (
               ref[len("refs/tags/"):] if ref.startswith("refs/tags/") else "")

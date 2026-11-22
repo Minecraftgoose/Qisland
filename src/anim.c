@@ -96,7 +96,7 @@ static double intro_glow_amp(const Anim *a)
 static void intro_glow(Canvas *c, double w, double h, double r,
                        double u, double amp)
 {
-    double sx, cx, cy, hw, hh, rr, gp, gin;
+    double sx, cx, cy, hw, hh, rr, gp, gin, soft;
     int x0, y0, x1, y1, x, y;
     sx = ((double)c->W - w * u) * 0.5;
     cx = sx + w * u * 0.5;
@@ -107,6 +107,8 @@ static void intro_glow(Canvas *c, double w, double h, double r,
     if (rr > hh) rr = hh;
     gp = INTRO_GLOW_PX * u;
     gin = INTRO_GLOW_IN * u;
+    soft = INTRO_GLOW_TOP_SOFT;
+    if (soft < 0.05) soft = 0.05;
     x0 = qs_iclamp((int)floor(sx - gp - 2.0), 0, c->W);
     y0 = 0;
     x1 = qs_iclamp((int)ceil(sx + w * u + gp + 2.0), 0, c->W);
@@ -115,7 +117,7 @@ static void intro_glow(Canvas *c, double w, double h, double r,
         for (x = x0; x < x1; x++) {
             double d = canvas_sd_roundbox((double)x + 0.5, (double)y + 0.5,
                                           cx, cy, hw, hh, rr);
-            double q, s;
+            double q, s, up, w;
             if (d >= 0.0) {
                 if (d >= gp) continue;
                 q = 1.0 - d / gp;
@@ -125,6 +127,15 @@ static void intro_glow(Canvas *c, double w, double h, double r,
                 q = 1.0 + d / gin;
                 s = amp * q * q * 0.32;
             }
+            /* 越朝上越淡，左右与下方的光平滑收进顶部 */
+            up = (cy - ((double)y + 0.5)) / (gp * soft);
+            w = 1.0;
+            if (up > 0.0) {
+                if (up > 1.0) up = 1.0;
+                w = 1.0 - up;
+                w = w * w * (3.0 - 2.0 * w);
+            }
+            s *= w;
             if (s > 0.002)
                 canvas_write_px(c, x, y, INTRO_GLOW_CR, INTRO_GLOW_CG,
                                 INTRO_GLOW_CB, s);

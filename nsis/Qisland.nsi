@@ -8,8 +8,8 @@
 !define MUI_UNICON  "..\src\qisland.ico"
 
 !define APPNAME      "Qisland"
-!define APPVERSION   "0.3.6.1"
-!define APPVERSION4  "0.3.6.1"
+!define APPVERSION   "0.3.6.2"
+!define APPVERSION4  "0.3.6.2"
 !define UNINSTKEY    "Software\Microsoft\Windows\CurrentVersion\Uninstall\Qisland"
 !define RUNKEY       "Software\Microsoft\Windows\CurrentVersion\Run"
 !define WNDCLASS     "QislandLayeredClass"

@@ -57,7 +57,9 @@
 #define SIZE_TAU        0.11
 
 /* 启动入场：四周光点汇入中心，胶囊长成并带一圈柔光 */
-#define INTRO_MS         640          /* 总时长，毫秒 */
+#define INTRO_BASE_MS    640          /* 1.0 倍速下的基准时长，毫秒 */
+#define INTRO_SPEED      0.5          /* 播放倍速，越小越慢 */
+#define INTRO_MS         (int)((double)INTRO_BASE_MS / INTRO_SPEED)
 #define INTRO_LINE_W     2.0         /* 起始细线宽，逻辑像素 */
 #define INTRO_LINE_H     2.0         /* 起始细线高，逻辑像素 */
 #define INTRO_H_DELAY    0.10        /* 高度比宽度晚起步的比例 */
@@ -85,6 +87,7 @@
 #define INTRO_GLOW_PEAK  0.62        /* 脉冲峰值时刻 */
 #define INTRO_GLOW_MAX   0.58        /* 峰值强度 */
 #define INTRO_GLOW_IDLE  0.13        /* 落定后岛态常驻强度 */
+#define INTRO_GLOW_TOP_SOFT 1.0      /* 上方渐隐范围，越大左右收到顶部越柔 */
 #define INTRO_GLOW_CR    170         /* 光晕颜色 */
 #define INTRO_GLOW_CG    210
 #define INTRO_GLOW_CB    255

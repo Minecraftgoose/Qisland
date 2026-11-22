@@ -113,7 +113,7 @@ jobs:
               return ver, f"{a}.{b}.{c}.{d}", f"{a},{b},{c},{d}", bool(re.search(r"[-+]", m.group(5)))
 
           cur = re.search(r'QI_VERSION_STR\s+"([^"]+)"', open(vh, encoding="utf-8").read())
-          current = cur.group(1) if cur else "0.3.6"
+          current = cur.group(1) if cur else "0.3.6.1"
           ref = os.environ.get("GITHUB_REF", "")
           tag = os.environ.get("INPUT_TAG", "").strip() or (
               ref[len("refs/tags/"):] if ref.startswith("refs/tags/") else "")

@@ -3,6 +3,7 @@
 #define QISLAND_ANIM_H
 
 #include "common.h"
+#include "canvas.h"
 
 typedef struct {
     double curW, curH, curR;
@@ -27,6 +28,8 @@ void   anim_intro_begin(Anim *a);
 void   anim_intro_geometry(const Anim *a, double w, double h, double r,
                            double *iw, double *ih, double *ir,
                            double *fade, double *lift);
+void   anim_intro_draw(Canvas *c, const Anim *a, double u,
+                       double w, double h, double r);
 
 int    anim_inside_target(const Anim *a, int view, double u,
                           int winW, double margin, int px, int py);

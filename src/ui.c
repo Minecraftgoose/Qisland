@@ -1112,6 +1112,7 @@ void ui_render(App *a)
     anim_intro_geometry(&a->anim, w, h, r, &iw, &ih, &ir, &fade, &lift);
 
     canvas_shape(&a->canvas, iw, ih, ir);
+    anim_intro_draw(&a->canvas, &a->anim, a->u, iw, ih, ir);
 
     /* 岛态：左侧时钟（数字，展开时淡出）； 倒计时进行时右侧同时显示 剩余时间。 */
     if (a->anim.exp < 0.98 && fade > 0.0) {

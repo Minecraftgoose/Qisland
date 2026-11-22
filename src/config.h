@@ -56,14 +56,38 @@
 #define EXP_DAMP_IN     19.0
 #define SIZE_TAU        0.11
 
-/* 启动入场：胶囊从顶部一条细线长出，参数集中在这里调 */
-#define INTRO_MS         520          /* 总时长，毫秒 */
+/* 启动入场：四周光点汇入中心，胶囊长成并带一圈柔光 */
+#define INTRO_MS         640          /* 总时长，毫秒 */
 #define INTRO_LINE_W     2.0         /* 起始细线宽，逻辑像素 */
 #define INTRO_LINE_H     2.0         /* 起始细线高，逻辑像素 */
 #define INTRO_H_DELAY    0.10        /* 高度比宽度晚起步的比例 */
 #define INTRO_BACK_C1    1.62        /* 宽度回弹强度，越大弹得越明显 */
 #define INTRO_TEXT_AT    0.55        /* 岛内文字开始淡入的进度 */
 #define INTRO_TEXT_LIFT  6.0         /* 文字上移归位的距离，逻辑像素 */
+
+/* 四面八方汇集的光点 */
+#define INTRO_DOTS       32           /* 光点数量，按角度均分一圈 */
+#define INTRO_DOT_R      2.8         /* 光点半径，逻辑像素 */
+#define INTRO_DOT_CR     196         /* 光点颜色，冷白偏蓝 */
+#define INTRO_DOT_CG     228
+#define INTRO_DOT_CB     255
+#define INTRO_DOT_A      0.95        /* 光点峰值不透明度 */
+#define INTRO_TRAIL      3           /* 每个光点的尾迹残影数 */
+#define INTRO_TRAIL_GAP  3.2         /* 残影间距，逻辑像素 */
+#define INTRO_FLY_END    0.58        /* 汇集结束的进度 */
+#define INTRO_DOT_FADE   0.60        /* 飞行进度超过此值后开始淡出 */
+#define INTRO_DOT_DELAY  0.10        /* 各光点到达时间的错峰幅度 */
+#define INTRO_SPREAD     1.02        /* 起点相对画布边界的外扩系数 */
+
+/* 胶囊外缘柔光 */
+#define INTRO_GLOW_PX    22.0        /* 外发光半径，逻辑像素 */
+#define INTRO_GLOW_IN    3.0         /* 内缘高光宽度，逻辑像素 */
+#define INTRO_GLOW_PEAK  0.62        /* 脉冲峰值时刻 */
+#define INTRO_GLOW_MAX   0.58        /* 峰值强度 */
+#define INTRO_GLOW_IDLE  0.13        /* 落定后岛态常驻强度 */
+#define INTRO_GLOW_CR    170         /* 光晕颜色 */
+#define INTRO_GLOW_CG    210
+#define INTRO_GLOW_CB    255
 #define HOVER_MARGIN    2.0
 #define WHEEL_DEBOUNCE  90
 #define APPLY_THROTTLE  120

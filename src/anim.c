@@ -53,6 +53,150 @@ void anim_intro_geometry(const Anim *a, double w, double h, double r,
     *lift = (1.0 - x) * INTRO_TEXT_LIFT;
 }
 
+/* 任意位置写一颗带柔边的光点，透明区域也能落笔 */
+static void glow_px(Canvas *c, double cx, double cy, double rad,
+                    int cr, int cg, int cb, double a)
+{
+    int x0, y0, x1, y1, x, y;
+    if (a <= 0.002 || rad < 0.5) return;
+    x0 = qs_iclamp((int)floor(cx - rad - 1.0), 0, c->W);
+    y0 = qs_iclamp((int)floor(cy - rad - 1.0), 0, c->H);
+    x1 = qs_iclamp((int)ceil(cx + rad + 1.0), 0, c->W);
+    y1 = qs_iclamp((int)ceil(cy + rad + 1.0), 0, c->H);
+    for (y = y0; y < y1; y++) {
+        for (x = x0; x < x1; x++) {
+            double dx = (double)x + 0.5 - cx;
+            double dy = (double)y + 0.5 - cy;
+            double q = 1.0 - sqrt(dx * dx + dy * dy) / rad;
+            if (q > 0.0)
+                canvas_write_px(c, x, y, cr, cg, cb, a * q * q);
+        }
+    }
+}
+
+/* 光晕强度：起步微光，汇聚时冲到峰值，落定收回常驻值 */
+static double intro_glow_amp(const Anim *a)
+{
+    double t, x;
+    if (a->introDone) return INTRO_GLOW_IDLE;
+    t = a->intro;
+    if (t <= 0.0) return INTRO_GLOW_IDLE;
+    if (t < INTRO_GLOW_PEAK) {
+        x = t / INTRO_GLOW_PEAK;
+        x = x * x * (3.0 - 2.0 * x);
+        return INTRO_GLOW_IDLE + (INTRO_GLOW_MAX - INTRO_GLOW_IDLE) * x;
+    }
+    x = (t - INTRO_GLOW_PEAK) / (1.0 - INTRO_GLOW_PEAK);
+    if (x > 1.0) x = 1.0;
+    x = x * x * (3.0 - 2.0 * x);
+    return INTRO_GLOW_MAX + (INTRO_GLOW_IDLE - INTRO_GLOW_MAX) * x;
+}
+
+/* 按圆角矩形距离场铺外发光，内缘再补一道极窄高光 */
+static void intro_glow(Canvas *c, double w, double h, double r,
+                       double u, double amp)
+{
+    double sx, cx, cy, hw, hh, rr, gp, gin;
+    int x0, y0, x1, y1, x, y;
+    sx = ((double)c->W - w * u) * 0.5;
+    cx = sx + w * u * 0.5;
+    cy = h * u * 0.5;
+    hw = w * u * 0.5;
+    hh = h * u * 0.5;
+    rr = r * u;
+    if (rr > hh) rr = hh;
+    gp = INTRO_GLOW_PX * u;
+    gin = INTRO_GLOW_IN * u;
+    x0 = qs_iclamp((int)floor(sx - gp - 2.0), 0, c->W);
+    y0 = 0;
+    x1 = qs_iclamp((int)ceil(sx + w * u + gp + 2.0), 0, c->W);
+    y1 = qs_iclamp((int)ceil(h * u + gp + 2.0), 0, c->H);
+    for (y = y0; y < y1; y++) {
+        for (x = x0; x < x1; x++) {
+            double d = canvas_sd_roundbox((double)x + 0.5, (double)y + 0.5,
+                                          cx, cy, hw, hh, rr);
+            double q, s;
+            if (d >= 0.0) {
+                if (d >= gp) continue;
+                q = 1.0 - d / gp;
+                s = amp * q * q;
+            } else {
+                if (-d >= gin) continue;
+                q = 1.0 + d / gin;
+                s = amp * q * q * 0.32;
+            }
+            if (s > 0.002)
+                canvas_write_px(c, x, y, INTRO_GLOW_CR, INTRO_GLOW_CG,
+                                INTRO_GLOW_CB, s);
+        }
+    }
+}
+
+/* 光点从画布四周边界沿径向汇入胶囊轮廓，带尾迹并错峰抵达 */
+static void intro_particles(Canvas *c, const Anim *a, double u,
+                            double w, double h)
+{
+    const double TAU = 6.28318530717958647692;
+    double cx, cy, hw, hh, ox, oy, t;
+    int i, j;
+    cx = (double)c->W * 0.5;
+    cy = h * u * 0.5;
+    ox = cx;
+    oy = (double)c->H * 0.5;
+    hw = w * u * 0.5;
+    hh = h * u * 0.5;
+    t = a->intro;
+    for (i = 0; i < INTRO_DOTS; i++) {
+        double th = TAU * (double)i / (double)INTRO_DOTS + 0.21;
+        double dx = cos(th), dy = sin(th);
+        double tx = 1e9, ty = 1e9, tmax;
+        double sx, sy, ex, ey, delay, p, e, px, py, env, len, nx, ny, a0;
+        if (fabs(dx) > 1e-6) tx = ox / fabs(dx);
+        if (fabs(dy) > 1e-6) ty = oy / fabs(dy);
+        tmax = (tx < ty) ? tx : ty;
+        if (tmax < 1.0) tmax = 1.0;
+        sx = ox + dx * tmax * INTRO_SPREAD;
+        sy = oy + dy * tmax * INTRO_SPREAD;
+        ex = cx + dx * hw * 0.86;
+        ey = cy + dy * hh * 0.86;
+        delay = (double)((i * 7) % 13) / 13.0 * INTRO_DOT_DELAY;
+        p = t / (INTRO_FLY_END - delay);
+        if (p <= 0.0 || p >= 1.0) continue;
+        e = p * p * (3.0 - 2.0 * p);
+        px = sx + (ex - sx) * e;
+        py = sy + (ey - sy) * e;
+        if (p < 0.16) env = p / 0.16;
+        else if (p > INTRO_DOT_FADE) env = (1.0 - p) / (1.0 - INTRO_DOT_FADE);
+        else env = 1.0;
+        len = sqrt((ex - sx) * (ex - sx) + (ey - sy) * (ey - sy));
+        if (len < 0.001) continue;
+        nx = (ex - sx) / len;
+        ny = (ey - sy) / len;
+        for (j = INTRO_TRAIL; j >= 1; j--) {
+            double off = (double)j * INTRO_TRAIL_GAP * u;
+            double q = env * (1.0 - (double)j / (double)(INTRO_TRAIL + 1)) * 0.62;
+            glow_px(c, px - nx * off, py - ny * off,
+                    INTRO_DOT_R * 0.72 * u,
+                    INTRO_DOT_CR, INTRO_DOT_CG, INTRO_DOT_CB, q);
+        }
+        a0 = env * INTRO_DOT_A;
+        glow_px(c, px, py, INTRO_DOT_R * u,
+                INTRO_DOT_CR, INTRO_DOT_CG, INTRO_DOT_CB, a0);
+        glow_px(c, px, py, INTRO_DOT_R * 0.42 * u, 255, 255, 255, a0 * 0.85);
+    }
+}
+
+/* 入场绘制：光晕每帧都在，落定后岛态保留一层极淡常驻光 */
+void anim_intro_draw(Canvas *c, const Anim *a, double u,
+                     double w, double h, double r)
+{
+    canvas_reset_clip(c);
+    if (a->introDone && a->exp > 0.02) return;
+    intro_glow(c, w, h, r, u, intro_glow_amp(a));
+    if (!a->introDone && a->intro < INTRO_FLY_END)
+        intro_particles(c, a, u, w, h);
+}
+
 /* 尺寸档由卡片表决定 */
 void anim_view_size(const Anim *a, int view,
                     double *w, double *h, double *r)

@@ -75,7 +75,7 @@ void update_result_wheel(int dir, double viewH)
 
 /* 小工具 */
 static void tag_to_ui(const char *tag, WCHAR *out, int cap);
-/* "v1.10.2" / "1.10" / "v2" / "v0.3.5.1" → 最多四段数字； 返回 0 = 解析不出来 */
+/* "v1.10.2" / "1.10" / "v2" / "v1.2.3.4" → 最多四段数字； 返回 0 = 解析不出来 */
 static int parse_ver(const char *t, int *maj, int *min, int *pat, int *rev)
 {
     int v[4] = { 0, 0, 0, 0 }, n = 0, i;
